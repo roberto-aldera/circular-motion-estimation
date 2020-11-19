@@ -16,11 +16,19 @@ def render_landmarks(params):
         shutil.rmtree(output_path)
     output_path.mkdir(parents=True)
 
+    # th = 0
+    # th = np.pi / 4 + np.pi  # roughly the angle the radar is offset by
+    # rotation_matrix = np.array([[np.cos(th), -np.sin(th)], [np.sin(th), np.cos(th)]])
+
     for i in range(params.num_samples):
         folder_path = landmarks_path + "landmarks_" + str(i)
         print(folder_path)
         landmarks = np.genfromtxt(folder_path + ".csv", delimiter=",")
         # print(landmarks)
+        # landmarks = landmarks @ rotation_matrix
+        # landmarks[:, 0] = -landmarks[:, 0]
+        landmarks[:, 0], landmarks[:, 1] = np.array(landmarks[:, 1]), np.array(landmarks[:, 0])
+        # landmarks[:, 0], landmarks[:, 1] = b, a
 
         plt.figure(figsize=(20, 20))
         dim = 200

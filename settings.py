@@ -7,7 +7,7 @@ np.random.seed(0)
 random.seed(0)
 
 # General dataset parameters
-TOTAL_SAMPLES = 5
+TOTAL_SAMPLES = 1
 RADAR_IMAGE_DIMENSION = 3000
 
 # Landmark paths
