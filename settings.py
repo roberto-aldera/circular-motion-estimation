@@ -8,7 +8,7 @@ random.seed(0)
 
 # General dataset parameters
 TOTAL_SAMPLES = 1
-RADAR_IMAGE_DIMENSION = 3000
+RADAR_IMAGE_DIMENSION = 3600
 
 # Landmark paths
 ROOT_DATA_DIR = "/workspace/data/landmark-distortion/"

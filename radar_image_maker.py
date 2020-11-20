@@ -67,26 +67,26 @@ def overlay_landmarks_onto_radar_image(params, radar_img, config, output_path, i
     # landmarks[:, 0] = landmarks[:, 0] - 0.8
     # landmarks[:, 1] = landmarks[:, 1] - 1.2
 
-    plt.figure(figsize=(20, 20))
-    dim = 200
-    plt.xlim(-dim, dim)
-    plt.ylim(-dim, dim)
-    plt.plot(landmarks[:, 0], landmarks[:, 1], "*")
-    plt.grid()
-    plt.savefig("%s%s%i%s" % (output_path, "/only_landmarks_", idx, ".png"))
-    plt.close()
+    # plt.figure(figsize=(20, 20))
+    # dim = 200
+    # plt.xlim(-dim, dim)
+    # plt.ylim(-dim, dim)
+    # plt.plot(landmarks[:, 0], landmarks[:, 1], "*")
+    # plt.grid()
+    # plt.savefig("%s%s%i%s" % (output_path, "/only_landmarks_", idx, ".png"))
+    # plt.close()
 
-    plt.figure(figsize=(20, 20))
-    plt.imshow(radar_img)
+    plt.figure(figsize=(15, 15))
+    plt.imshow(radar_img, cmap='gray')
     metric_scale_factor = 1 / config.bin_size_or_resolution
     image_landmarks = np.array(landmarks) * metric_scale_factor
     image_landmarks[:, 0], image_landmarks[:, 1] = image_landmarks[:, 0] + settings.RADAR_IMAGE_DIMENSION / 2, \
                                                    image_landmarks[:, 1] + settings.RADAR_IMAGE_DIMENSION / 2
-    plt.scatter(image_landmarks[:, 0], image_landmarks[:, 1], c='r', s=1)
+    plt.scatter(image_landmarks[:, 0], image_landmarks[:, 1], marker='^', s=40, facecolors='none', edgecolors='r')
     dim = settings.RADAR_IMAGE_DIMENSION
     plt.xlim(0, dim)
     plt.ylim(0, dim)
-    plt.savefig("%s%s%i%s" % (output_path, "/landmarks_", idx, ".png"))
+    plt.savefig("%s%s%i%s" % (output_path, "/landmarks_", idx, ".jpg"))
 
 
 def main():
