@@ -2,6 +2,7 @@ import numpy as np
 import sys
 import os
 import csv
+import pandas as pd
 
 
 def get_poses_from_file(dataset_path):
@@ -130,3 +131,34 @@ def save_timestamps_and_x_y_th_to_csv(timestamps, x_y_th, pose_source, export_fo
         for idx in range(len(timestamps)):
             timestamp_and_x_y_th = [timestamps[idx], x_values[idx], y_values[idx], th_values[idx]]
             wr.writerow(timestamp_and_x_y_th)
+
+
+def get_ground_truth_poses_from_csv(path_to_gt_csv):
+    """
+    Load poses from csv for the Oxford radar robotcar 10k dataset.
+    """
+    df = pd.read_csv(path_to_gt_csv)
+    # print(df.head())
+    x_vals = df['x']
+    y_vals = df['y']
+    th_vals = df['yaw']
+    timestamps = df['source_radar_timestamp']
+
+    se3s = []
+    for i in range(len(df.index)):
+        th = th_vals[i]
+        pose = np.identity(4)
+        pose[0, 0] = np.cos(th)
+        pose[0, 1] = -np.sin(th)
+        pose[1, 0] = np.sin(th)
+        pose[1, 1] = np.cos(th)
+        pose[0, 3] = x_vals[i]
+        pose[1, 3] = y_vals[i]
+        se3s.append(pose)
+    return se3s, timestamps
+
+
+if __name__ == "__main__":
+    print("Running post utils main...")
+    get_ground_truth_poses_from_csv(
+        "/workspace/data/RadarDataLogs/2019-01-10-14-50-05-radar-oxford-10k/gt/radar_odometry.csv")
