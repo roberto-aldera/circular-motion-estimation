@@ -50,10 +50,11 @@ class Matrix(object):
 
 
 def get_ro_state_from_pb(pb_ro_state):
-    print("Running get_ro_state_from_pb...")
     radar_odometry_state = RadarOdometryState()
     radar_odometry_state.timestamp = pb_ro_state.timestamp
     radar_odometry_state.primary_scan_landmark_set = pb_ro_state.primary_scan_landmark_set
+    radar_odometry_state.secondary_scan_landmark_set = pb_ro_state.secondary_scan_landmark_set
+    radar_odometry_state.primary_scan_point_descriptors = pb_ro_state.primary_scan_point_descriptors
     radar_odometry_state.secondary_scan_point_descriptors = pb_ro_state.secondary_scan_point_descriptors
     radar_odometry_state.unary_match_candidates = pb_ro_state.unary_match_candidates
     radar_odometry_state.compatibility_matrix = pb_ro_state.compatibility_matrix
