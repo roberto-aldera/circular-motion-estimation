@@ -25,7 +25,7 @@ class RadarOdometryState(object):
         self.secondary_scan_point_descriptors = None
         self.unary_match_candidates = None
         self.compatibility_matrix = None
-        self.eigen_vectors = None
+        self.eigen_vector = None
         self.eigen_values = None
         self.selected_matches = None
         self.number_of_matches = None
@@ -58,7 +58,7 @@ def get_ro_state_from_pb(pb_ro_state):
     radar_odometry_state.secondary_scan_point_descriptors = pb_ro_state.secondary_scan_point_descriptors
     radar_odometry_state.unary_match_candidates = pb_ro_state.unary_match_candidates
     radar_odometry_state.compatibility_matrix = pb_ro_state.compatibility_matrix
-    radar_odometry_state.eigen_vectors = pb_ro_state.eigen_vectors
+    radar_odometry_state.eigen_vector = pb_ro_state.eigen_vector
     radar_odometry_state.eigen_values = pb_ro_state.eigen_values
     radar_odometry_state.selected_matches = pb_ro_state.selected_matches
     radar_odometry_state.number_of_matches = pb_ro_state.number_of_matches
