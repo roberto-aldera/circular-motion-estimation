@@ -24,6 +24,7 @@ class RadarOdometryState(object):
         self.primary_scan_point_descriptors = None
         self.secondary_scan_point_descriptors = None
         self.unary_match_candidates = None
+        self.associations = None
         self.compatibility_matrix = None
         self.eigen_vector = None
         self.eigen_values = None
@@ -57,6 +58,7 @@ def get_ro_state_from_pb(pb_ro_state):
     radar_odometry_state.primary_scan_point_descriptors = pb_ro_state.primary_scan_point_descriptors
     radar_odometry_state.secondary_scan_point_descriptors = pb_ro_state.secondary_scan_point_descriptors
     radar_odometry_state.unary_match_candidates = pb_ro_state.unary_match_candidates
+    radar_odometry_state.associations = pb_ro_state.associations
     radar_odometry_state.compatibility_matrix = pb_ro_state.compatibility_matrix
     radar_odometry_state.eigen_vector = pb_ro_state.eigen_vector
     radar_odometry_state.eigen_values = pb_ro_state.eigen_values
@@ -81,8 +83,7 @@ def get_matrix_from_pb(pb_matrix, stored_datatype='double'):
     # matrix.int32_data = pb_matrix.int32_data
     # matrix.int64_data = pb_matrix.int64_data
     assert stored_datatype == 'double'
-    reshaped_matrix = np.reshape(np.array([matrix.double_data]),
-                                 (matrix.cols, matrix.rows))  # prefer N x 2 for matches instead of 2 x N
+    reshaped_matrix = np.reshape(np.array([matrix.double_data]), (matrix.rows, matrix.cols))
     return reshaped_matrix
 
 
@@ -110,7 +111,14 @@ if __name__ == "__main__":
 
     # Get unary matches as an example
     unary_match_candidates = get_matrix_from_pb(ro_state.unary_match_candidates)
+    unary_matches = np.reshape(unary_matches, (unary_matches.shape[1], -1))
     print("Shape of unary matches:", unary_match_candidates.shape)
     print(unary_match_candidates)
+
+    # Get associations (if they're stored)
+    associations = get_matrix_from_pb(ro_state.associations)
+    associations = np.reshape(get_matrix_from_pb(ro_state.associations), (associations.shape[1], -1))
+    print("Shape of associations:", associations.shape)
+    print(associations)
 
     print("Finished!")
