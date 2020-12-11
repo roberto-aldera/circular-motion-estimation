@@ -65,9 +65,11 @@ def find_landmark_deltas(params, radar_state_mono):
 
         print("Size of primary landmarks:", len(primary_landmarks))
         print("Size of secondary landmarks:", len(secondary_landmarks))
-        k_match_ratio = 0.4
+        k_match_ratio = 0.5  # this is an upper limit, it's a bit more crude than what we do in RO
 
         best_matches = np.empty((int(unary_matches.shape[0] * k_match_ratio), 2))
+        match_weight = np.empty(best_matches.shape[0])
+
         num_matches = 0
         while num_matches < len(best_matches):
             eigen_max_idx = np.argmax(eigenvector)
@@ -76,9 +78,11 @@ def find_landmark_deltas(params, radar_state_mono):
             if not (best_matches[:, 1] == proposed_new_match[1]).any():
                 # then this is not a duplicate
                 best_matches[num_matches] = proposed_new_match
+                match_weight[num_matches] = eigenvector[eigen_max_idx]
                 num_matches += 1
             eigenvector[eigen_max_idx] = 0  # set to zero, so that next time we seek the max it'll be the next match
 
+        match_weight = match_weight / match_weight[0]
         # Selected matches are those that were used by RO, best matches are for development purposes here in python land
         matches_to_plot = best_matches.astype(int)
 
@@ -93,11 +97,8 @@ def find_landmark_deltas(params, radar_state_mono):
                 y1 = primary_landmarks[matches_to_plot[match_idx, 1], 0]
                 x2 = secondary_landmarks[matches_to_plot[match_idx, 0], 1]
                 y2 = secondary_landmarks[matches_to_plot[match_idx, 0], 0]
-                # print("landmark 1 point 'x'-coord:", x1)
-                # print("landmark 2 point 'x'-coord:", x2)
-                # print("landmark 1 point 'y'-coord:", y1)
-                # print("landmark 2 point 'y'-coord:", y2)
-                plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=1 - (match_idx / len(matches_to_plot)))
+                plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=match_weight[match_idx])
+                # plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=1 - (match_idx / len(matches_to_plot)))
 
     # plot sensor range for Oxford radar robotcar dataset
     circle_theta = np.linspace(0, 2 * np.pi, 100)
