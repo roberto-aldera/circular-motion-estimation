@@ -6,7 +6,7 @@ import shutil
 from argparse import ArgumentParser
 import settings
 from pose_tools.pose_utils import *
-from unpack_ro_protobuf import get_ro_state_from_pb
+from unpack_ro_protobuf import get_ro_state_from_pb, get_matrix_from_pb
 
 # Include paths - need these for interfacing with custom protobufs
 sys.path.insert(-1, "/workspace/code/corelibs/src/tools-python")
@@ -41,8 +41,9 @@ def find_landmark_deltas(params, radar_state_mono):
     for i in range(params.num_samples):
         pb_state, name_scan, _ = radar_state_mono[i]
         ro_state = get_ro_state_from_pb(pb_state)
-        landmarks = PbSerialisedPointCloudToPython(ro_state.primary_scan_landmark_set).get_xyz()
-        landmarks = np.c_[landmarks, np.ones(len(landmarks))]  # so that se3 multiplication works
+        primary_landmarks = PbSerialisedPointCloudToPython(ro_state.primary_scan_landmark_set).get_xyz()
+        primary_landmarks = np.c_[
+            primary_landmarks, np.ones(len(primary_landmarks))]  # so that se3 multiplication works
 
         relative_pose_index = i + k_start_index_from_odometry + 1
         relative_pose_timestamp = timestamps[relative_pose_index]
@@ -50,14 +51,53 @@ def find_landmark_deltas(params, radar_state_mono):
         # ensure timestamps are within a reasonable limit of each other (microseconds)
         assert (ro_state.timestamp - relative_pose_timestamp) < 500
 
-        global_pose = global_pose @ se3s[relative_pose_index]
-        landmarks = np.transpose(global_pose @ np.transpose(landmarks))
+        # global_pose = global_pose @ se3s[relative_pose_index]
+        primary_landmarks = np.transpose(global_pose @ np.transpose(primary_landmarks))
+
+        secondary_landmarks = PbSerialisedPointCloudToPython(ro_state.secondary_scan_landmark_set).get_xyz()
+        selected_matches = get_matrix_from_pb(ro_state.selected_matches).astype(int)
+        selected_matches = np.reshape(selected_matches, (selected_matches.shape[1], -1))
+        eigenvector = get_matrix_from_pb(ro_state.eigen_vector)
+
+        # Get the best matches in order from the unary candidates using the eigenvector elements
+        unary_matches = get_matrix_from_pb(ro_state.unary_match_candidates).astype(int)
+        unary_matches = np.reshape(unary_matches, (unary_matches.shape[1], -1))
+
+        print("Size of primary landmarks:", len(primary_landmarks))
+        print("Size of secondary landmarks:", len(secondary_landmarks))
+        k_match_ratio = 0.4
+
+        best_matches = np.empty((int(unary_matches.shape[0] * k_match_ratio), 2))
+        num_matches = 0
+        while num_matches < len(best_matches):
+            eigen_max_idx = np.argmax(eigenvector)
+            proposed_new_match = unary_matches[eigen_max_idx].astype(int)
+            # do a check here, to see if this proposed match from the unary candidates is a duplicate
+            if not (best_matches[:, 1] == proposed_new_match[1]).any():
+                # then this is not a duplicate
+                best_matches[num_matches] = proposed_new_match
+                num_matches += 1
+            eigenvector[eigen_max_idx] = 0  # set to zero, so that next time we seek the max it'll be the next match
+
+        # Selected matches are those that were used by RO, best matches are for development purposes here in python land
+        matches_to_plot = best_matches.astype(int)
+
         if i % k_every_nth_scan == 0:
             print("Processing index: ", i)
             # plot x and y swapped around so that robot is moving forward as upward direction
-            p = plt.plot(landmarks[:, 1], landmarks[:, 0], '+', markerfacecolor='none', markersize=1)
-            # plt.plot(landmarks[:, 1], landmarks[:, 0], ',')  # use ',' for pixel markers
-            plt.plot(global_pose[1, 3], global_pose[0, 3], '^', color=p[-1].get_color())
+            p1 = plt.plot(primary_landmarks[:, 1], primary_landmarks[:, 0], '+', markerfacecolor='none', markersize=1)
+            p2 = plt.plot(secondary_landmarks[:, 1], secondary_landmarks[:, 0], '+', markerfacecolor='none',
+                          markersize=1)
+            for match_idx in range(len(matches_to_plot)):
+                x1 = primary_landmarks[matches_to_plot[match_idx, 1], 1]
+                y1 = primary_landmarks[matches_to_plot[match_idx, 1], 0]
+                x2 = secondary_landmarks[matches_to_plot[match_idx, 0], 1]
+                y2 = secondary_landmarks[matches_to_plot[match_idx, 0], 0]
+                # print("landmark 1 point 'x'-coord:", x1)
+                # print("landmark 2 point 'x'-coord:", x2)
+                # print("landmark 1 point 'y'-coord:", y1)
+                # print("landmark 2 point 'y'-coord:", y2)
+                plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=1 - (match_idx / len(matches_to_plot)))
 
     # plot sensor range for Oxford radar robotcar dataset
     circle_theta = np.linspace(0, 2 * np.pi, 100)
@@ -69,6 +109,7 @@ def find_landmark_deltas(params, radar_state_mono):
     plt.grid()
     plt.gca().set_aspect('equal', adjustable='box')
     plt.savefig("%s%s%s" % (output_path, "/delta_landmarks", ".png"))
+    plt.savefig("%s%s%s" % (output_path, "/delta_landmarks", ".pdf"))
     plt.close()
 
 
@@ -77,7 +118,8 @@ def main():
     parser.add_argument('--relative_poses', type=str, default="", help='Path to relative pose file')
     parser.add_argument('--input_path', type=str, default="",
                         help='Path to folder containing required inputs')
-    parser.add_argument('--num_samples', type=int, default=settings.TOTAL_SAMPLES, help='Number of samples to process')
+    parser.add_argument('--num_samples', type=int, default=settings.TOTAL_SAMPLES,
+                        help='Number of samples to process')
     params = parser.parse_args()
 
     print("Running delta landmarks...")
