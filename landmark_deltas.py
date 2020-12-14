@@ -30,15 +30,15 @@ def find_landmark_deltas(params, radar_state_mono):
     # print(se3s[0])
     global_pose = np.eye(4)
 
-    plt.figure(figsize=(20, 20))
-    # dim = 200
-    # plt.xlim(-dim, dim)
-    # plt.ylim(-dim, dim)
-
     k_every_nth_scan = 1
     k_start_index_from_odometry = 140
+    k_plot_eigen_things = True
 
     for i in range(params.num_samples):
+        plt.figure(figsize=(20, 20))
+        # dim = 200
+        # plt.xlim(-dim, dim)
+        # plt.ylim(-dim, dim)
         pb_state, name_scan, _ = radar_state_mono[i]
         ro_state = get_ro_state_from_pb(pb_state)
         primary_landmarks = PbSerialisedPointCloudToPython(ro_state.primary_scan_landmark_set).get_xyz()
@@ -65,7 +65,7 @@ def find_landmark_deltas(params, radar_state_mono):
 
         print("Size of primary landmarks:", len(primary_landmarks))
         print("Size of secondary landmarks:", len(secondary_landmarks))
-        k_match_ratio = 0.5  # this is an upper limit, it's a bit more crude than what we do in RO
+        k_match_ratio = 0.4  # this is an upper limit, it's a bit more crude than what we do in RO
 
         best_matches = np.empty((int(unary_matches.shape[0] * k_match_ratio), 2))
         match_weight = np.empty(best_matches.shape[0])
@@ -82,7 +82,7 @@ def find_landmark_deltas(params, radar_state_mono):
                 num_matches += 1
             eigenvector[eigen_max_idx] = 0  # set to zero, so that next time we seek the max it'll be the next match
 
-        match_weight = match_weight / match_weight[0]
+        normalised_match_weight = match_weight / match_weight[0]
         # Selected matches are those that were used by RO, best matches are for development purposes here in python land
         matches_to_plot = best_matches.astype(int)
 
@@ -97,21 +97,45 @@ def find_landmark_deltas(params, radar_state_mono):
                 y1 = primary_landmarks[matches_to_plot[match_idx, 1], 0]
                 x2 = secondary_landmarks[matches_to_plot[match_idx, 0], 1]
                 y2 = secondary_landmarks[matches_to_plot[match_idx, 0], 0]
-                plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=match_weight[match_idx])
+                plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=normalised_match_weight[match_idx])
                 # plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=1 - (match_idx / len(matches_to_plot)))
 
-    # plot sensor range for Oxford radar robotcar dataset
-    circle_theta = np.linspace(0, 2 * np.pi, 100)
-    r = 163
-    x1 = global_pose[1, 3] + r * np.cos(circle_theta)
-    x2 = global_pose[0, 3] + r * np.sin(circle_theta)
-    plt.plot(x1, x2, 'g--')
+        # plot sensor range for Oxford radar robotcar dataset
+        circle_theta = np.linspace(0, 2 * np.pi, 100)
+        r = 163
+        x1 = global_pose[1, 3] + r * np.cos(circle_theta)
+        x2 = global_pose[0, 3] + r * np.sin(circle_theta)
+        plt.plot(x1, x2, 'g--')
 
-    plt.grid()
-    plt.gca().set_aspect('equal', adjustable='box')
-    plt.savefig("%s%s%s" % (output_path, "/delta_landmarks", ".png"))
-    plt.savefig("%s%s%s" % (output_path, "/delta_landmarks", ".pdf"))
-    plt.close()
+        plt.grid()
+        plt.gca().set_aspect('equal', adjustable='box')
+        # plt.savefig("%s%s%i%s" % (output_path, "/delta_landmarks",i, ".png"))
+        plt.savefig("%s%s%i%s" % (output_path, "/delta_landmarks", i, ".pdf"))
+        plt.close()
+
+        if k_plot_eigen_things:
+            plt.figure(figsize=(10, 10))
+            eigenvector = get_matrix_from_pb(ro_state.eigen_vector)
+            plt.plot(-np.sort(-eigenvector, axis=None), label="All possible matches (one-to-many)")
+            plt.plot(-np.sort(-match_weight, axis=None), label="Selected matches (one-to-one)")
+            plt.title("Normalised sorted eigenvector elements from compatibility matrix")
+            plt.grid()
+            plt.legend()
+            plt.savefig("%s%s%i%s" % (output_path, "/eigenvector", i, ".png"))
+            plt.close()
+
+            match_ranges = np.empty(len(matches_to_plot))
+            for match_idx in range(len(matches_to_plot)):
+                x1 = primary_landmarks[matches_to_plot[match_idx, 1], 1]
+                y1 = primary_landmarks[matches_to_plot[match_idx, 1], 0]
+                match_ranges[match_idx] = np.sqrt(x1 ** 2 + y1 ** 2)
+
+            plt.figure(figsize=(10, 10))
+            plt.scatter(match_ranges, match_weight)
+            plt.title("Landmark range vs eigenvector element magnitude")
+            plt.grid()
+            plt.savefig("%s%s%i%s" % (output_path, "/match_range_vs_eigenvector", i, ".png"))
+            plt.close()
 
 
 def main():
