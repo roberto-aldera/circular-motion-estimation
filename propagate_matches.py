@@ -6,6 +6,7 @@ import shutil
 from argparse import ArgumentParser
 from dataclasses import dataclass
 import pandas as pd
+import pdb
 import settings
 from pose_tools.pose_utils import *
 from unpack_ro_protobuf import get_ro_state_from_pb, get_matrix_from_pb
@@ -42,10 +43,8 @@ def propagate_matches(params, radar_state_mono):
     k_every_nth_scan = 1
     k_start_index_from_odometry = 140
 
-    # landmark = Landmark(0, 5, 10)
-    # record_of_matches = pd.DataFrame(landmark)
-    # import pdb
-    # pdb.set_trace()
+    match_record = []
+    df_match_chains = pd.DataFrame()
 
     for i in range(params.num_samples):
         plt.figure(figsize=(20, 20))
@@ -75,26 +74,104 @@ def propagate_matches(params, radar_state_mono):
 
         print("Size of primary landmarks:", len(primary_landmarks))
         print("Size of secondary landmarks:", len(secondary_landmarks))
-        k_match_ratio = 0.4  # this is an upper limit, it's a bit more crude than what we do in RO
+        k_match_ratio = 0.5  # this is an upper limit, it's a bit more crude than what we do in RO
+        max_matches = int(unary_matches.shape[0] * k_match_ratio)  # len(unary_matches) * k_match_ratio
+        size_of_smaller_landmark_set = min(len(primary_landmarks), len(secondary_landmarks))
 
-        best_matches = np.empty((int(unary_matches.shape[0] * k_match_ratio), 2))
-        match_weight = np.empty(best_matches.shape[0])
+        best_matches = np.zeros((max_matches, 2))
+        match_weight = np.zeros(best_matches.shape[0])
+        # best_matches = []
+        # match_weight = []
 
         num_matches = 0
-        while num_matches < len(best_matches):
+        search_idx = 0
+        while search_idx < size_of_smaller_landmark_set:
+            # while num_matches < len(best_matches):
             eigen_max_idx = np.argmax(eigenvector)
+            # print("eigen_max_idx:", eigen_max_idx)
+            max_eigenvector_val = eigenvector[eigen_max_idx]
+            if max_eigenvector_val ** 2 < (
+                    1.0 / size_of_smaller_landmark_set) or num_matches >= max_matches or max_eigenvector_val < 0:
+                print("So this happened...", search_idx)
+                print(max_eigenvector_val ** 2 < (1.0 / size_of_smaller_landmark_set))
+                print(num_matches > max_matches)
+                print(max_eigenvector_val < 0)
+                # pdb.set_trace()
+                break
+            search_idx += 1
             proposed_new_match = unary_matches[eigen_max_idx].astype(int)
             # do a check here, to see if this proposed match from the unary candidates is a duplicate
-            if not (best_matches[:, 1] == proposed_new_match[1]).any():
+            # pdb.set_trace()
+
+            # if not (best_matches[:, 1] == proposed_new_match[1]).any():
+            # if proposed_new_match[0] not in best_matches[:][0]:
+
+            # if len(best_matches) == 0:
+            #     print("Adding first match...")
+            #     best_matches.append(proposed_new_match)
+            #     match_weight.append(eigenvector[eigen_max_idx])
+            #     num_matches += 1
+            # else:
+            # (proposed_new_match[0] == best_matches).any() # need to get just the first 'column' of best matches
+            # (proposed_new_match[0] == [point[0] for point in best_matches]).any()
+            # for k in best_matches:
+            # if proposed_new_match[0] == k[0]:
+            #     print("Duplicate skipped: ", proposed_new_match, "already have:", k)
+            # if proposed_new_match[0] not in k:
+            if not (proposed_new_match[0] == [point[0] for point in best_matches]).any():
                 # then this is not a duplicate
                 best_matches[num_matches] = proposed_new_match
                 match_weight[num_matches] = eigenvector[eigen_max_idx]
+                # best_matches.append(proposed_new_match)
+                # match_weight.append(eigenvector[eigen_max_idx])
                 num_matches += 1
+            else:
+                print("Duplicate skipped: ", proposed_new_match)
             eigenvector[eigen_max_idx] = 0  # set to zero, so that next time we seek the max it'll be the next match
 
+        # clean up to remove zeros (had to be initialised when we didn't yet know their final size)
+        # pdb.set_trace()
+        best_matches = best_matches[~np.all(best_matches == 0, axis=1)]
+        match_weight = match_weight[~np.all(match_weight == 0, axis=0)][0]
         normalised_match_weight = match_weight / match_weight[0]
         # Selected matches are those that were used by RO, best matches are for development purposes here in python land
         matches_to_plot = best_matches.astype(int)
+        # pdb.set_trace()
+        # print(matches_to_plot)
+        if df_match_chains.empty:
+            print("Filling match chain container with first match pairs...")
+            df_match_chains = pd.DataFrame(pd.NA, index=range(0, len(matches_to_plot)), columns=range(0, 5))
+            # fill first and second columns with initial matches
+            df_match_chains.at[:, 0:1] = matches_to_plot
+        else:
+            print("Appending matches...")
+            # naively append all matches on directly.
+            # max_rows = 5
+            # pdb.set_trace()
+            # df_match_chains.at[:max_rows, i+1] = matches_to_plot[:max_rows+1, 1]
+
+            # iterate through points that were matched in the previous scan
+            last_matched_points = np.array(df_match_chains[i])
+
+            for match_idx in range(len(last_matched_points)):
+                if pd.isna(last_matched_points[match_idx]) is False:
+                    # pdb.set_trace()
+                    idx = np.where(matches_to_plot[:, 0] == last_matched_points[match_idx])
+                    print(idx)
+                    # debugging
+                    if len(idx[0]) > 1:
+                        pdb.set_trace()
+
+                    if matches_to_plot[idx, 1]:
+                        # pdb.set_trace()
+                        match_to_add = matches_to_plot[idx, 1].item()
+                        df_match_chains.at[match_idx, i + 1] = match_to_add
+                    # pdb.set_trace()
+                    # print(last_matched_points[match_idx])
+            # then check if they are present in the new matches
+
+        print(df_match_chains)
+        # pdb.set_trace()
 
         if i % k_every_nth_scan == 0:
             print("Processing index: ", i)
@@ -144,16 +221,16 @@ def main():
     # get a landmark set in and plot it
     propagate_matches(params, radar_state_mono)
 
-    la1 = Landmark(0, 5, 10)
-    la2 = Landmark(0, 6, 11)
-    la3 = Landmark(0, 7, 12)
-    lb1 = Landmark(1, 4, 9)
-    lb2 = Landmark(1, 5, 10)
-    lb3 = Landmark(1, 6, 11)
-
-    record_of_matches = pd.DataFrame([la1, la2, la3])
-    record_of_matches = record_of_matches.append([lb1, lb2, lb3])
-    print(record_of_matches)
+    # la1 = Landmark(0, 5, 10)
+    # la2 = Landmark(0, 6, 11)
+    # la3 = Landmark(0, 7, 12)
+    # lb1 = Landmark(1, 4, 9)
+    # lb2 = Landmark(1, 5, 10)
+    # lb3 = Landmark(1, 6, 11)
+    #
+    # record_of_matches = pd.DataFrame([la1, la2, la3])
+    # record_of_matches = record_of_matches.append([lb1, lb2, lb3])
+    # print(record_of_matches)
 
 
 if __name__ == "__main__":
