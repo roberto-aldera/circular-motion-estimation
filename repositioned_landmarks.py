@@ -18,8 +18,8 @@ from mrg.adaptors.pointcloud import PbSerialisedPointCloudToPython
 from mrg.pointclouds.classes import PointCloud
 
 
-def find_landmark_deltas(params, radar_state_mono):
-    figure_path = params.input_path + "figs_delta_landmarks/"
+def reposition_landmarks(params, radar_state_mono):
+    figure_path = params.input_path + "figs_repositioned_landmarks/"
     output_path = Path(figure_path)
     if output_path.exists() and output_path.is_dir():
         shutil.rmtree(output_path)
@@ -32,7 +32,6 @@ def find_landmark_deltas(params, radar_state_mono):
 
     k_every_nth_scan = 1
     k_start_index_from_odometry = 140
-    k_plot_eigen_things = True
 
     for i in range(params.num_samples):
         plt.figure(figsize=(20, 20))
@@ -51,10 +50,23 @@ def find_landmark_deltas(params, radar_state_mono):
         # ensure timestamps are within a reasonable limit of each other (microseconds)
         assert (ro_state.timestamp - relative_pose_timestamp) < 500
 
-        # global_pose = global_pose @ se3s[relative_pose_index]
-        primary_landmarks = np.transpose(global_pose @ np.transpose(primary_landmarks))
+        # Get motion estimate that was calculated from RO
+        ro_se3, ro_timestamp = get_poses_from_serialised_transform(ro_state.g_motion_estimate)
+        # import pdb
+        # pdb.set_trace()
+        # ro_se3 = np.linalg.inv(ro_se3)
+        print("SE3 from RO:\n", ro_se3)
 
-        secondary_landmarks = PbSerialisedPointCloudToPython(ro_state.secondary_scan_landmark_set).get_xyz()
+        # global_pose = global_pose @ se3s[relative_pose_index]
+        ground_truth_pose = se3s[relative_pose_index]
+        print("Ground truth pose:\n", ground_truth_pose)
+        tmp_landmarks = primary_landmarks
+        primary_landmarks = np.transpose(ground_truth_pose @ np.transpose(tmp_landmarks))
+        secondary_landmarks = np.transpose(ro_se3 @ np.transpose(tmp_landmarks))
+
+        # primary_landmarks = np.transpose(global_pose @ np.transpose(primary_landmarks))
+
+        # secondary_landmarks = PbSerialisedPointCloudToPython(ro_state.secondary_scan_landmark_set).get_xyz()
         selected_matches = get_matrix_from_pb(ro_state.selected_matches).astype(int)
         selected_matches = np.reshape(selected_matches, (selected_matches.shape[1], -1))
         eigenvector = get_matrix_from_pb(ro_state.eigen_vector)
@@ -93,13 +105,13 @@ def find_landmark_deltas(params, radar_state_mono):
             p1 = plt.plot(primary_landmarks[:, 1], primary_landmarks[:, 0], '+', markerfacecolor='none', markersize=1)
             p2 = plt.plot(secondary_landmarks[:, 1], secondary_landmarks[:, 0], '+', markerfacecolor='none',
                           markersize=1)
-            for match_idx in range(len(matches_to_plot)):
-                x1 = primary_landmarks[matches_to_plot[match_idx, 1], 1]
-                y1 = primary_landmarks[matches_to_plot[match_idx, 1], 0]
-                x2 = secondary_landmarks[matches_to_plot[match_idx, 0], 1]
-                y2 = secondary_landmarks[matches_to_plot[match_idx, 0], 0]
-                plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=normalised_match_weight[match_idx])
-                # plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=1 - (match_idx / len(matches_to_plot)))
+            # for match_idx in range(len(matches_to_plot)):
+            #     x1 = primary_landmarks[matches_to_plot[match_idx, 1], 1]
+            #     y1 = primary_landmarks[matches_to_plot[match_idx, 1], 0]
+            #     x2 = secondary_landmarks[matches_to_plot[match_idx, 0], 1]
+            #     y2 = secondary_landmarks[matches_to_plot[match_idx, 0], 0]
+            #     plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=normalised_match_weight[match_idx])
+            #     # plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=1 - (match_idx / len(matches_to_plot)))
 
         # plot sensor range for Oxford radar robotcar dataset
         circle_theta = np.linspace(0, 2 * np.pi, 100)
@@ -111,32 +123,8 @@ def find_landmark_deltas(params, radar_state_mono):
         plt.grid()
         plt.gca().set_aspect('equal', adjustable='box')
         # plt.savefig("%s%s%i%s" % (output_path, "/delta_landmarks",i, ".png"))
-        plt.savefig("%s%s%i%s" % (output_path, "/delta_landmarks", i, ".pdf"))
+        plt.savefig("%s%s%i%s" % (output_path, "/repositioned_landmarks", i, ".pdf"))
         plt.close()
-
-        if k_plot_eigen_things:
-            plt.figure(figsize=(10, 10))
-            eigenvector = get_matrix_from_pb(ro_state.eigen_vector)
-            plt.plot(-np.sort(-eigenvector, axis=None), label="All possible matches (one-to-many)")
-            plt.plot(-np.sort(-match_weight, axis=None), label="Selected matches (one-to-one)")
-            plt.title("Normalised sorted eigenvector elements from compatibility matrix")
-            plt.grid()
-            plt.legend()
-            plt.savefig("%s%s%i%s" % (output_path, "/eigenvector", i, ".png"))
-            plt.close()
-
-            match_ranges = np.empty(len(matches_to_plot))
-            for match_idx in range(len(matches_to_plot)):
-                x1 = primary_landmarks[matches_to_plot[match_idx, 1], 1]
-                y1 = primary_landmarks[matches_to_plot[match_idx, 1], 0]
-                match_ranges[match_idx] = np.sqrt(x1 ** 2 + y1 ** 2)
-
-            plt.figure(figsize=(10, 10))
-            plt.scatter(match_ranges, match_weight)
-            plt.title("Landmark range vs eigenvector element magnitude")
-            plt.grid()
-            plt.savefig("%s%s%i%s" % (output_path, "/match_range_vs_eigenvector", i, ".png"))
-            plt.close()
 
 
 def main():
@@ -148,7 +136,7 @@ def main():
                         help='Number of samples to process')
     params = parser.parse_args()
 
-    print("Running delta landmarks...")
+    print("Running landmark repositioning...")
 
     # You need to run this: ~/code/corelibs/build/tools-cpp/bin/MonolithicIndexBuilder
     # -i /Users/roberto/Desktop/ro_state.monolithic -o /Users/roberto/Desktop/ro_state.monolithic.index
@@ -156,7 +144,7 @@ def main():
     print("Number of indices in this radar odometry state monolithic:", len(radar_state_mono))
 
     # get a landmark set in and plot it
-    find_landmark_deltas(params, radar_state_mono)
+    reposition_landmarks(params, radar_state_mono)
 
 
 if __name__ == "__main__":
