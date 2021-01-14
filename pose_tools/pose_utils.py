@@ -39,6 +39,21 @@ def get_poses_from_file(dataset_path):
     return se3s, timestamps
 
 
+def get_poses_from_serialised_transform(pb_serialised_transform):
+    # Magic
+    sys.path.append(os.path.expanduser("/workspace/code/corelibs/src/tools-python"))
+    sys.path.append(os.path.expanduser("/workspace/code/corelibs/build/datatypes"))
+    sys.path.append(os.path.expanduser("/workspace/code/corelibs/build/datatypes/datatypes_python"))
+
+    # from mrg.logging import MonolithicDecoder
+    from mrg.adaptors.transform import PbSerialisedTransformToPython
+
+    serialised_transform = PbSerialisedTransformToPython(pb_serialised_transform)
+    se3 = serialised_transform[0]
+    timestamp = serialised_transform[1]
+    return se3, timestamp
+
+
 def get_x_y_th_velocities_from_poses(se3s, timestamps):
     assert len(se3s) == len(timestamps)
     x_velocities = []
