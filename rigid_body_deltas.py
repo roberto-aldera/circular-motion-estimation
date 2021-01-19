@@ -99,11 +99,11 @@ def find_rigid_body_deltas(params, radar_state_mono):
         if i % k_every_nth_scan == 0:
             print("Processing index: ", i)
             # plot x and y swapped around so that robot is moving forward as upward direction
-            p1 = plt.plot(primary_landmarks[:, 1], primary_landmarks[:, 0], '+', markerfacecolor='none', markersize=1)
+            p1 = plt.plot(primary_landmarks[:, 1], primary_landmarks[:, 0], '+', markerfacecolor='none', markersize=1, color="tab:blue")
             p2 = plt.plot(secondary_landmarks[:, 1], secondary_landmarks[:, 0], '+', markerfacecolor='none',
-                          markersize=1)
+                          markersize=1, color="tab:orange")
             p3 = plt.plot(hallucinated_landmarks[:, 1], hallucinated_landmarks[:, 0], '+', markerfacecolor='none',
-                          markersize=1)
+                          markersize=1, color="tab:green")
             for match_idx in range(len(matches_to_plot)):
                 x1 = primary_landmarks[matches_to_plot[match_idx, 1], 1]
                 y1 = primary_landmarks[matches_to_plot[match_idx, 1], 0]
@@ -155,7 +155,6 @@ def find_rigid_body_deltas(params, radar_state_mono):
 
 def main():
     parser = ArgumentParser(add_help=False)
-    parser.add_argument('--relative_poses', type=str, default="", help='Path to relative pose file')
     parser.add_argument('--input_path', type=str, default="",
                         help='Path to folder containing required inputs')
     parser.add_argument('--num_samples', type=int, default=settings.TOTAL_SAMPLES,

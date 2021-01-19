@@ -78,7 +78,6 @@ def plot_odometries(params, radar_state_mono):
 
 def main():
     parser = ArgumentParser(add_help=False)
-    parser.add_argument('--relative_poses', type=str, default="", help='Path to relative pose file')
     parser.add_argument('--input_path', type=str, default="",
                         help='Path to folder containing required inputs')
     parser.add_argument('--num_samples', type=int, default=settings.TOTAL_SAMPLES,
