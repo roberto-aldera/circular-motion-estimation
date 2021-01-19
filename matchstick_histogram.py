@@ -87,6 +87,8 @@ def matchstick_histogram(params, radar_state_mono):
         plt.plot(distances, '.')
         plt.title("Matchstick length")
         plt.grid()
+        plt.xlabel("Match index (in order of preference)")
+        plt.ylabel("Distance between matched points (m)")
         plt.savefig("%s%s%i%s" % (output_path, "/matchstick_length_", i, ".png"))
         plt.close()
 
@@ -94,7 +96,27 @@ def matchstick_histogram(params, radar_state_mono):
         plt.plot(angles, '.')
         plt.title("Matchstick angle")
         plt.grid()
+        plt.xlabel("Match index (in order of preference)")
+        plt.ylabel("Angle between match and horizontal (deg)")
         plt.savefig("%s%s%i%s" % (output_path, "/matchstick_angles_", i, ".png"))
+        plt.close()
+
+        plt.figure(figsize=(10, 10))
+        n, bins, patches = plt.hist(distances, 100, density=False, facecolor='tab:blue')
+        plt.title("Distribution of matchstick lengths")
+        plt.grid()
+        plt.xlabel("Length (m)")
+        plt.ylabel("Number of matches")
+        plt.savefig("%s%s%i%s" % (output_path, "/matchstick_length_histogram_", i, ".png"))
+        plt.close()
+
+        plt.figure(figsize=(10, 10))
+        n, bins, patches = plt.hist(angles, 100, density=False, facecolor='tab:blue')
+        plt.title("Distribution of matchstick angles")
+        plt.grid()
+        plt.xlabel("Angle (deg)")
+        plt.ylabel("Number of matches")
+        plt.savefig("%s%s%i%s" % (output_path, "/matchstick_angle_histogram_", i, ".png"))
         plt.close()
 
 
