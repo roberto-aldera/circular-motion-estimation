@@ -18,8 +18,8 @@ from mrg.adaptors.pointcloud import PbSerialisedPointCloudToPython
 from mrg.pointclouds.classes import PointCloud
 
 
-def find_landmark_deltas(params, radar_state_mono):
-    figure_path = params.input_path + "figs_delta_landmarks/"
+def find_rigid_body_deltas(params, radar_state_mono):
+    figure_path = params.input_path + "figs_rigid_body_landmarks/"
     output_path = Path(figure_path)
     if output_path.exists() and output_path.is_dir():
         shutil.rmtree(output_path)
@@ -32,7 +32,7 @@ def find_landmark_deltas(params, radar_state_mono):
 
     k_every_nth_scan = 1
     k_start_index_from_odometry = 140
-    k_plot_eigen_things = True
+    k_plot_eigen_things = False
 
     for i in range(params.num_samples):
         plt.figure(figsize=(20, 20))
@@ -87,11 +87,22 @@ def find_landmark_deltas(params, radar_state_mono):
         matches_to_plot = best_matches.astype(int)
         # matches_to_plot = selected_matches.astype(int)
 
+        # Landmarks that were previously observed, that will be moved to where we'd expect to find the live landmarks
+        # import pdb
+        # pdb.set_trace()
+        hallucinated_landmarks = PbSerialisedPointCloudToPython(ro_state.secondary_scan_landmark_set).get_xyz()
+        hallucinated_landmarks = np.c_[
+            hallucinated_landmarks, np.ones(len(hallucinated_landmarks))]  # so that se3 multiplication works
+        hallucinated_landmarks = np.transpose(
+            np.linalg.inv(se3s[relative_pose_index]) @ np.transpose(hallucinated_landmarks))
+
         if i % k_every_nth_scan == 0:
             print("Processing index: ", i)
             # plot x and y swapped around so that robot is moving forward as upward direction
             p1 = plt.plot(primary_landmarks[:, 1], primary_landmarks[:, 0], '+', markerfacecolor='none', markersize=1)
             p2 = plt.plot(secondary_landmarks[:, 1], secondary_landmarks[:, 0], '+', markerfacecolor='none',
+                          markersize=1)
+            p3 = plt.plot(hallucinated_landmarks[:, 1], hallucinated_landmarks[:, 0], '+', markerfacecolor='none',
                           markersize=1)
             for match_idx in range(len(matches_to_plot)):
                 x1 = primary_landmarks[matches_to_plot[match_idx, 1], 1]
@@ -100,6 +111,9 @@ def find_landmark_deltas(params, radar_state_mono):
                 y2 = secondary_landmarks[matches_to_plot[match_idx, 0], 0]
                 plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=normalised_match_weight[match_idx])
                 # plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=1 - (match_idx / len(matches_to_plot)))
+                x3 = hallucinated_landmarks[matches_to_plot[match_idx, 0], 1]
+                y3 = hallucinated_landmarks[matches_to_plot[match_idx, 0], 0]
+                plt.plot([x1, x3], [y1, y3], 'r', linewidth=0.5, alpha=normalised_match_weight[match_idx])
 
         # plot sensor range for Oxford radar robotcar dataset
         circle_theta = np.linspace(0, 2 * np.pi, 100)
@@ -148,7 +162,7 @@ def main():
                         help='Number of samples to process')
     params = parser.parse_args()
 
-    print("Running delta landmarks...")
+    print("Running rigid_body deltas...")
 
     # You need to run this: ~/code/corelibs/build/tools-cpp/bin/MonolithicIndexBuilder
     # -i /Users/roberto/Desktop/ro_state.monolithic -o /Users/roberto/Desktop/ro_state.monolithic.index
@@ -156,7 +170,7 @@ def main():
     print("Number of indices in this radar odometry state monolithic:", len(radar_state_mono))
 
     # get a landmark set in and plot it
-    find_landmark_deltas(params, radar_state_mono)
+    find_rigid_body_deltas(params, radar_state_mono)
 
 
 if __name__ == "__main__":
