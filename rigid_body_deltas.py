@@ -1,3 +1,5 @@
+# Script that is used to find errors between live and previous landmarks, if the previous landmarks had all undergone
+# the motion described by ground truth odometry.
 import numpy as np
 import matplotlib.pyplot as plt
 import sys

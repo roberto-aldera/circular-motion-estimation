@@ -1,3 +1,4 @@
+# Script to plot the live and previous landmarks and their corresponding matches from an RO protobuf
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
