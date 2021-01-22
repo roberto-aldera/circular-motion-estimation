@@ -9,7 +9,8 @@ import settings
 from pose_tools.pose_utils import *
 from unpack_ro_protobuf import get_ro_state_from_pb, get_matrix_from_pb
 from get_rigid_body_motion import get_motion_estimate_from_svd
-from ransac_utilities import get_pose_estimates_with_ransac, get_best_ransac_motion_estimate_index
+from ransac_utilities import get_pose_estimates_with_ransac, get_best_ransac_motion_estimate_index, \
+    plot_points_and_match_errors
 
 # Include paths - need these for interfacing with custom protobufs
 sys.path.insert(-1, "/workspace/code/corelibs/src/tools-python")
@@ -125,11 +126,18 @@ def ransac_motion_estimation(params, radar_state_mono):
         print("SVD motion estimate (y, x, th):", pose_from_svd)
 
         # Motion estimate from RANSAC
-        pose_estimates = get_pose_estimates_with_ransac(P1, P2, iterations=10)
+        pose_estimates = get_pose_estimates_with_ransac(P1, P2, iterations=50)
         print(pose_estimates)
-        best_model_index = get_best_ransac_motion_estimate_index(P1, P2, pose_estimates, figpath=figure_path)
+        best_model_index = get_best_ransac_motion_estimate_index(P1, P2, pose_estimates)
         best_ransac_motion_estimate = pose_estimates[best_model_index]
         print("Best RANSAC motion estimate (y, x, th):", best_ransac_motion_estimate)
+        T_model = np.transpose(np.array([best_ransac_motion_estimate[0:2]]))
+        theta_model = best_ransac_motion_estimate[2]
+        R_model = np.array([[np.cos(theta_model), -np.sin(theta_model)], [np.sin(theta_model), np.cos(theta_model)]])
+        P_model = R_model @ P1 + T_model
+        plot_points_and_match_errors(P1, P2, P_model, figpath=figure_path)
+
+        # TODO: Re-run SVD on all inliers from the best RANSAC model
 
 
 def main():
