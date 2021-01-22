@@ -59,14 +59,16 @@ def main():
 
     # Mini RANSAC method
     pose_estimates = get_pose_estimates_with_ransac(P1, P2)
-    get_best_ransac_motion_estimate(P1, P2, pose_estimates)
+    get_best_ransac_motion_estimate_index(P1, P2, pose_estimates)
 
 
-def get_best_ransac_motion_estimate(P1, P2, ransac_pose_estimates, inlier_threshold=0.1):
+def get_best_ransac_motion_estimate_index(P1, P2, ransac_pose_estimates, inlier_threshold=0.1,
+                                    figpath="/workspace/data/landmark-distortion/ro_state_pb_developing/figs_toy_ransac/"):
     # P1 an P2 are assumed to be already matched
     # Transform points using estimate, and plot (green, hallucinated) for all estimates
     model_inlier_counts = []
     for i in range(len(ransac_pose_estimates)):
+        print("Computing RANSAC motion estimate for sample set:", i+1, "of", len(ransac_pose_estimates))
         model_x_y_th = ransac_pose_estimates[i]
         T_model = np.transpose(np.array([model_x_y_th[0:2]]))
         theta_model = model_x_y_th[2]
@@ -75,9 +77,9 @@ def get_best_ransac_motion_estimate(P1, P2, ransac_pose_estimates, inlier_thresh
         P_model = R_model @ P1 + T_model
 
         plt.figure(figsize=(10, 10))
-        plt.plot(P1[0], P1[1], 'x', color="tab:blue")
-        plt.plot(P2[0], P2[1], 'x', color="tab:orange")
-        plt.plot(P_model[0], P_model[1], 'x', color="tab:green")
+        plt.plot(P1[0], P1[1], '+', markerfacecolor='none', markersize=1, color="tab:blue")
+        plt.plot(P2[0], P2[1], '+', markerfacecolor='none', markersize=1, color="tab:orange")
+        plt.plot(P_model[0], P_model[1], '+', markerfacecolor='none', markersize=1, color="tab:green")
         match_deltas = []
         for idx in range(P1.shape[1]):
             x1 = P1[0, idx]
@@ -87,19 +89,18 @@ def get_best_ransac_motion_estimate(P1, P2, ransac_pose_estimates, inlier_thresh
             x3 = P_model[0, idx]
             y3 = P_model[1, idx]
             plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=1)
-            plt.plot([x2, x3], [y2, y3], 'r--', linewidth=0.5, alpha=1)
+            plt.plot([x2, x3], [y2, y3], 'r', linewidth=0.5, alpha=1)
             match_deltas.append([x2, x3, y2, y3])
 
-        plt.title("Proposed matches")
+        plt.title("RANSAC proposed matches")
         plt.grid()
         plt.xlabel("X")
         plt.ylabel("Y")
-        dim = 5
-        plt.xlim(-dim, dim)
-        plt.ylim(-dim, dim)
+        # dim = 5
+        # plt.xlim(-dim, dim)
+        # plt.ylim(-dim, dim)
         plt.gca().set_aspect('equal', adjustable='box')
-        plt.savefig("%s%i%s" % (
-            "/workspace/data/landmark-distortion/ro_state_pb_developing/figs_toy_ransac/", i, "_ransac_svd.png"))
+        plt.savefig("%s%i%s" % (figpath, i, "_ransac_svd.pdf"))
         plt.close()
 
         # Find errors (red lines) from match deltas
@@ -110,10 +111,11 @@ def get_best_ransac_motion_estimate(P1, P2, ransac_pose_estimates, inlier_thresh
             y1 = match[2]
             y2 = match[3]
             match_error_magnitudes.append(np.sqrt(np.square(x2 - x1) + np.square(y2 - y1)))
-        print("Match error magnitude for each point:", match_error_magnitudes)
+        # print("Match error magnitude for each point:", match_error_magnitudes)
         num_inliers = (np.array(match_error_magnitudes) < inlier_threshold).sum()
         model_inlier_counts.append(num_inliers)
     print("Inliers for each model:", model_inlier_counts)
+    return np.argmax(model_inlier_counts)
 
 
 def get_pose_estimates_with_ransac(P1, P2, iterations=6):
