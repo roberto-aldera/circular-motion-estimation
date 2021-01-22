@@ -25,7 +25,6 @@ def main():
     pose = [v[0], v[1], theta_R]
     T_model = np.transpose(np.array([pose[0:2]]))
     theta_model = pose[2]
-    # pdb.set_trace()
 
     R_model = np.array([[np.cos(theta_model), -np.sin(theta_model)], [np.sin(theta_model), np.cos(theta_model)]])
     P_model = R_model @ P1 + T_model
@@ -55,54 +54,71 @@ def main():
     plt.xlim(-dim, dim)
     plt.ylim(-dim, dim)
     plt.gca().set_aspect('equal', adjustable='box')
-    plt.savefig("/workspace/Desktop/full_svd.png")
+    plt.savefig("/workspace/data/landmark-distortion/ro_state_pb_developing/figs_toy_ransac/full_svd.png")
     plt.close()
-
-    # print(matched_points)
 
     # Mini RANSAC method
     pose_estimates = get_pose_estimates_with_ransac(P1, P2)
-    print(pose_estimates)
+    get_best_ransac_motion_estimate(P1, P2, pose_estimates)
 
-    # Transform points using estimate, and plot (green, hallucinated)
-    model_x_y_th = pose_estimates[0]
-    T_model = np.transpose(np.array([model_x_y_th[0:2]]))
-    theta_model = model_x_y_th[2]
-    # pdb.set_trace()
 
-    R_model = np.array([[np.cos(theta_model), -np.sin(theta_model)], [np.sin(theta_model), np.cos(theta_model)]])
-    P_model = R_model @ P1 + T_model
+def get_best_ransac_motion_estimate(P1, P2, ransac_pose_estimates, inlier_threshold=0.1):
+    # P1 an P2 are assumed to be already matched
+    # Transform points using estimate, and plot (green, hallucinated) for all estimates
+    model_inlier_counts = []
+    for i in range(len(ransac_pose_estimates)):
+        model_x_y_th = ransac_pose_estimates[i]
+        T_model = np.transpose(np.array([model_x_y_th[0:2]]))
+        theta_model = model_x_y_th[2]
 
-    plt.figure(figsize=(10, 10))
-    plt.plot(P1[0], P1[1], 'x', color="tab:blue")
-    plt.plot(P2[0], P2[1], 'x', color="tab:orange")
-    plt.plot(P_model[0], P_model[1], 'x', color="tab:green")
-    for idx in range(P1.shape[1]):
-        x1 = P1[0, idx]
-        y1 = P1[1, idx]
-        x2 = P2[0, idx]
-        y2 = P2[1, idx]
-        x3 = P_model[0, idx]
-        y3 = P_model[1, idx]
-        plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=1)
-        plt.plot([x2, x3], [y2, y3], 'r--', linewidth=0.5, alpha=1)
+        R_model = np.array([[np.cos(theta_model), -np.sin(theta_model)], [np.sin(theta_model), np.cos(theta_model)]])
+        P_model = R_model @ P1 + T_model
 
-    plt.title("Proposed matches")
-    plt.grid()
-    plt.xlabel("X")
-    plt.ylabel("Y")
-    dim = 5
-    plt.xlim(-dim, dim)
-    plt.ylim(-dim, dim)
-    plt.gca().set_aspect('equal', adjustable='box')
-    plt.savefig("/workspace/Desktop/ransac_svd.png")
-    plt.close()
+        plt.figure(figsize=(10, 10))
+        plt.plot(P1[0], P1[1], 'x', color="tab:blue")
+        plt.plot(P2[0], P2[1], 'x', color="tab:orange")
+        plt.plot(P_model[0], P_model[1], 'x', color="tab:green")
+        match_deltas = []
+        for idx in range(P1.shape[1]):
+            x1 = P1[0, idx]
+            y1 = P1[1, idx]
+            x2 = P2[0, idx]
+            y2 = P2[1, idx]
+            x3 = P_model[0, idx]
+            y3 = P_model[1, idx]
+            plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=1)
+            plt.plot([x2, x3], [y2, y3], 'r--', linewidth=0.5, alpha=1)
+            match_deltas.append([x2, x3, y2, y3])
 
-    # TODO: Find errors (red lines)
+        plt.title("Proposed matches")
+        plt.grid()
+        plt.xlabel("X")
+        plt.ylabel("Y")
+        dim = 5
+        plt.xlim(-dim, dim)
+        plt.ylim(-dim, dim)
+        plt.gca().set_aspect('equal', adjustable='box')
+        plt.savefig("%s%i%s" % (
+            "/workspace/data/landmark-distortion/ro_state_pb_developing/figs_toy_ransac/", i, "_ransac_svd.png"))
+        plt.close()
+
+        # Find errors (red lines) from match deltas
+        match_error_magnitudes = []
+        for match in match_deltas:
+            x1 = match[0]
+            x2 = match[1]
+            y1 = match[2]
+            y2 = match[3]
+            match_error_magnitudes.append(np.sqrt(np.square(x2 - x1) + np.square(y2 - y1)))
+        print("Match error magnitude for each point:", match_error_magnitudes)
+        num_inliers = (np.array(match_error_magnitudes) < inlier_threshold).sum()
+        model_inlier_counts.append(num_inliers)
+    print("Inliers for each model:", model_inlier_counts)
 
 
 def get_pose_estimates_with_ransac(P1, P2, iterations=6):
-    # Mini RANSAC method
+    # RANSAC method
+    # P1 an P2 are assumed to be already matched
     pose_estimates = []
     for i in range(iterations):
         n_total = P1.shape[1]
