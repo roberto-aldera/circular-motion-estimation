@@ -120,6 +120,23 @@ def matchstick_histogram(params, radar_state_mono):
         plt.savefig("%s%s%i%s" % (output_path, "/matchstick_angle_histogram_", i, ".png"))
         plt.close()
 
+        # Quick test of the SVD method:
+        p1_points = []
+        p2_points = []
+        for match in matched_points:
+            x1 = match[0]
+            x2 = match[1]
+            y1 = match[2]
+            y2 = match[3]
+            p1_points.append([x1, y1])
+            p2_points.append([x2, y2])
+        p1_points = np.transpose(p1_points)
+        p2_points = np.transpose(p2_points)
+
+        from get_rigid_body_motion import get_motion_estimate_from_svd
+        v, theta_R = get_motion_estimate_from_svd(p1_points, p2_points, weights=np.ones(p1_points.shape[1]))
+        print(v, theta_R)
+
 
 def main():
     parser = ArgumentParser(add_help=False)

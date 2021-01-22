@@ -17,7 +17,6 @@ def get_motion_estimate_from_svd(P1, P2, weights):
 
     # Weights (I think these can be used if we trust some points more than others)
     W = np.diag(weights)
-
     C = P1_origin @ W @ np.transpose(P2_origin)
 
     # Do SVD to find rotation
@@ -52,15 +51,15 @@ def main():
     print("True translation:", T_offset, "\n estimate:", v)
     print("True rotation:", theta, "\n estimate:", theta_R)
 
-    plt.figure(figsize=(10, 10))
-    plt.plot(P1[0], P1[1], 'x')
-    plt.plot(P2[0], P2[1], 'o')
-    plt.title("Title")
-    plt.grid()
-    plt.xlabel("X")
-    plt.ylabel("Y")
-    plt.savefig("/workspace/Desktop/tmp.png")
-    plt.close()
+    # plt.figure(figsize=(10, 10))
+    # plt.plot(P1[0], P1[1], 'x')
+    # plt.plot(P2[0], P2[1], 'o')
+    # plt.title("Title")
+    # plt.grid()
+    # plt.xlabel("X")
+    # plt.ylabel("Y")
+    # plt.savefig("/workspace/Desktop/tmp.png")
+    # plt.close()
 
 
 if __name__ == "__main__":
