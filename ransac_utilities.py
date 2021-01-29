@@ -102,8 +102,6 @@ def get_best_ransac_motion_estimate_index(P1, P2, ransac_pose_estimates, inlier_
         # print("Match error magnitude for each point:", match_error_magnitudes)
         num_inliers = (np.array(match_error_magnitudes) < inlier_threshold).sum()
 
-        # TODO: check here if this is the best model so far, if it is, store the inliers
-
         model_inlier_counts.append(num_inliers)
     print("Inliers for each model:", model_inlier_counts)
     return np.argmax(model_inlier_counts)
@@ -143,7 +141,7 @@ def get_all_inliers_from_best_ransac_motion_estimate(P1, P2, ransac_pose_estimat
             match_error_magnitudes.append(np.sqrt(np.square(x2 - x1) + np.square(y2 - y1)))
         # print("Match error magnitude for each point:", match_error_magnitudes)
         num_inliers = (np.array(match_error_magnitudes) < inlier_threshold).sum()
-        # TODO: check here if this is the best model so far, if it is, store the inliers
+        # check here if this is the best model so far, if it is, store the inliers
         if num_inliers > highest_inlier_count:
             champion_inliers = np.array(match_error_magnitudes) < inlier_threshold
             highest_inlier_count = num_inliers

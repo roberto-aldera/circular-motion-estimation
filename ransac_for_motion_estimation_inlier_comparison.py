@@ -1,4 +1,6 @@
 # Script for getting motion estimate by running ransac on the matches to reject outliers
+# Runs a comparison between motion estimates from SVD on all matches, the best RANSAC (3) matches,
+# and the inliers from the best RANSAC model
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
@@ -137,7 +139,7 @@ def ransac_motion_estimation(params, radar_state_mono):
         P_model = R_model @ P1 + T_model
         plot_points_and_match_errors(P1, P2, P_model, figpath=figure_path)
 
-        # Re-run SVD on all inliers from the best RANSAC model
+        # Compare by re-running SVD on all inliers from the best RANSAC model
         champion_inliers = get_all_inliers_from_best_ransac_motion_estimate(P1, P2, pose_estimates)
 
         P1_inliers = P1[:, champion_inliers]
