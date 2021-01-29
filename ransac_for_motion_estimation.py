@@ -10,7 +10,7 @@ from pose_tools.pose_utils import *
 from unpack_ro_protobuf import get_ro_state_from_pb, get_matrix_from_pb
 from get_rigid_body_motion import get_motion_estimate_from_svd
 from ransac_utilities import get_pose_estimates_with_ransac, get_best_ransac_motion_estimate_index, \
-    plot_points_and_match_errors
+    plot_points_and_match_errors, get_all_inliers_from_best_ransac_motion_estimate
 
 # Include paths - need these for interfacing with custom protobufs
 sys.path.insert(-1, "/workspace/code/corelibs/src/tools-python")
@@ -127,7 +127,7 @@ def ransac_motion_estimation(params, radar_state_mono):
 
         # Motion estimate from RANSAC
         pose_estimates = get_pose_estimates_with_ransac(P1, P2, iterations=50)
-        print(pose_estimates)
+        # print(pose_estimates)
         best_model_index = get_best_ransac_motion_estimate_index(P1, P2, pose_estimates)
         best_ransac_motion_estimate = pose_estimates[best_model_index]
         print("Best RANSAC motion estimate (y, x, th):", best_ransac_motion_estimate)
@@ -137,7 +137,22 @@ def ransac_motion_estimation(params, radar_state_mono):
         P_model = R_model @ P1 + T_model
         plot_points_and_match_errors(P1, P2, P_model, figpath=figure_path)
 
-        # TODO: Re-run SVD on all inliers from the best RANSAC model
+        # Re-run SVD on all inliers from the best RANSAC model
+        champion_inliers = get_all_inliers_from_best_ransac_motion_estimate(P1, P2, pose_estimates)
+
+        P1_inliers = P1[:, champion_inliers]
+        P2_inliers = P2[:, champion_inliers]
+        v, theta_R = get_motion_estimate_from_svd(P1_inliers, P2_inliers, weights=np.ones(P1_inliers.shape[1]))
+        pose_from_svd = [v[0], v[1], theta_R]
+        print("Pose from SVD on best inliers:", pose_from_svd)
+        T_model = np.transpose(np.array([pose_from_svd[0:2]]))
+        theta_model = pose_from_svd[2]
+
+        R_model = np.array([[np.cos(theta_model), -np.sin(theta_model)], [np.sin(theta_model), np.cos(theta_model)]])
+        P_model = R_model @ P1_inliers + T_model
+        plot_points_and_match_errors(P1_inliers, P2_inliers, P_model, figpath=figure_path, figname="inliers_SVD.pdf")
+        P_model = R_model @ P1 + T_model
+        plot_points_and_match_errors(P1, P2, P_model, figpath=figure_path, figname="inliers_SVD_with_all_points.pdf")
 
 
 def main():

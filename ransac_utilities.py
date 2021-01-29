@@ -109,8 +109,54 @@ def get_best_ransac_motion_estimate_index(P1, P2, ransac_pose_estimates, inlier_
     return np.argmax(model_inlier_counts)
 
 
+def get_all_inliers_from_best_ransac_motion_estimate(P1, P2, ransac_pose_estimates, inlier_threshold=0.1):
+    # P1 an P2 are assumed to be already matched
+    # Transform points using estimate, and plot (green, hallucinated) for all estimates
+    # Keep a record of the current inlier indices, and if they belong to the champion at the end, return them
+    model_inlier_counts = []
+    highest_inlier_count = 0
+    champion_inliers = []
+    for i in range(len(ransac_pose_estimates)):
+        print("Computing RANSAC motion estimate for sample set:", i + 1, "of", len(ransac_pose_estimates))
+        model_x_y_th = ransac_pose_estimates[i]
+        T_model = np.transpose(np.array([model_x_y_th[0:2]]))
+        theta_model = model_x_y_th[2]
+
+        R_model = np.array([[np.cos(theta_model), -np.sin(theta_model)], [np.sin(theta_model), np.cos(theta_model)]])
+        P_model = R_model @ P1 + T_model
+
+        match_deltas = []
+        for idx in range(P1.shape[1]):
+            x2 = P2[0, idx]
+            y2 = P2[1, idx]
+            x3 = P_model[0, idx]
+            y3 = P_model[1, idx]
+            match_deltas.append([x2, x3, y2, y3])
+
+        # Find errors (red lines) from match deltas
+        match_error_magnitudes = []
+        for match in match_deltas:
+            x1 = match[0]
+            x2 = match[1]
+            y1 = match[2]
+            y2 = match[3]
+            match_error_magnitudes.append(np.sqrt(np.square(x2 - x1) + np.square(y2 - y1)))
+        # print("Match error magnitude for each point:", match_error_magnitudes)
+        num_inliers = (np.array(match_error_magnitudes) < inlier_threshold).sum()
+        # TODO: check here if this is the best model so far, if it is, store the inliers
+        if num_inliers > highest_inlier_count:
+            champion_inliers = np.array(match_error_magnitudes) < inlier_threshold
+            highest_inlier_count = num_inliers
+
+        model_inlier_counts.append(num_inliers)
+    print("Inliers for each model:", model_inlier_counts)
+    print("Highest inlier count:", highest_inlier_count)
+    return champion_inliers
+
+
 def plot_points_and_match_errors(P1, P2, P_model,
-                                 figpath="/workspace/data/landmark-distortion/ro_state_pb_developing/figs_toy_ransac/"):
+                                 figpath="/workspace/data/landmark-distortion/ro_state_pb_developing/figs_toy_ransac/",
+                                 figname="best_ransac_svd.pdf"):
     plt.figure(figsize=(10, 10))
     plt.plot(P1[0], P1[1], '+', markerfacecolor='none', markersize=1, color="tab:blue", label="Live")
     plt.plot(P2[0], P2[1], '+', markerfacecolor='none', markersize=1, color="tab:orange", label="Previous")
@@ -137,7 +183,7 @@ def plot_points_and_match_errors(P1, P2, P_model,
     # plt.ylim(-dim, dim)
     plt.gca().set_aspect('equal', adjustable='box')
     plt.legend()
-    plt.savefig("%s%s" % (figpath, "best_ransac_svd.pdf"))
+    plt.savefig("%s%s" % (figpath, figname))
     plt.close()
 
 
