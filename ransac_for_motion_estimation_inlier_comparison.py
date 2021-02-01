@@ -25,7 +25,7 @@ from mrg.pointclouds.classes import PointCloud
 
 
 def ransac_motion_estimation(params, radar_state_mono):
-    figure_path = params.input_path + "figs_ransac_motion_estimation/"
+    figure_path = params.input_path + "figs_ransac_for_motion_estimation_inlier_comparison/"
     output_path = Path(figure_path)
     if output_path.exists() and output_path.is_dir():
         shutil.rmtree(output_path)

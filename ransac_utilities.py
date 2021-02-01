@@ -115,7 +115,7 @@ def get_all_inliers_from_best_ransac_motion_estimate(P1, P2, ransac_pose_estimat
     highest_inlier_count = 0
     champion_inliers = []
     for i in range(len(ransac_pose_estimates)):
-        print("Computing RANSAC motion estimate for sample set:", i + 1, "of", len(ransac_pose_estimates))
+        # print("Computing RANSAC motion estimate for sample set:", i + 1, "of", len(ransac_pose_estimates))
         model_x_y_th = ransac_pose_estimates[i]
         T_model = np.transpose(np.array([model_x_y_th[0:2]]))
         theta_model = model_x_y_th[2]

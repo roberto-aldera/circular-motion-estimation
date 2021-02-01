@@ -7,6 +7,7 @@ from argparse import ArgumentParser
 import settings
 from pose_tools.pose_utils import *
 from unpack_ro_protobuf import get_ro_state_from_pb, get_matrix_from_pb
+from pyslam.metrics import TrajectoryMetrics
 
 # Include paths - need these for interfacing with custom protobufs
 sys.path.insert(-1, "/workspace/code/corelibs/src/tools-python")
@@ -74,6 +75,24 @@ def plot_odometries(params, radar_state_mono):
     plt.legend()
     plt.savefig("%s%s" % (output_path, "/odometry_comparison.pdf"))
     plt.close()
+
+    # Some code to run KITTI metrics over poses, based on pyslam TrajectoryMetrics
+    se3s, timestamps = get_ground_truth_poses_from_csv_as_se3(
+        "/workspace/data/RadarDataLogs/2019-01-10-14-50-05-radar-oxford-10k/gt/radar_odometry.csv")
+
+    T_gt = se3s
+    T_ro = get_se3s_from_raw_se3s(ro_se3s)
+    segment_lengths = [1, 5, 10, 20]
+    tm_gt_ro = TrajectoryMetrics(T_gt, T_ro)
+    print("Trajectory Metrics:")
+    print("endpoint_error:", tm_gt_ro.endpoint_error(segment_lengths))
+    print("segment_errors:", tm_gt_ro.segment_errors(segment_lengths))
+    print("traj_errors:", tm_gt_ro.traj_errors(segment_lengths))
+    print("rel_errors:", tm_gt_ro.rel_errors(segment_lengths))
+    print("error_norms:", tm_gt_ro.error_norms(segment_lengths))
+    print("mean_err:", tm_gt_ro.mean_err(segment_lengths))
+    print("cum_err:", tm_gt_ro.cum_err(segment_lengths))
+    print("rms_err:", tm_gt_ro.rms_err(segment_lengths))
 
 
 def main():

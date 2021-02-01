@@ -3,6 +3,7 @@ import sys
 import os
 import csv
 import pandas as pd
+from liegroups import SE3
 
 
 def get_poses_from_file(dataset_path):
@@ -75,6 +76,29 @@ def get_x_y_th_velocities_from_poses(se3s, timestamps):
     return x_velocities, y_velocities, th_velocities
 
 
+def get_x_y_th_velocities_from_x_y_th(x_y_th, timestamps):
+    assert len(x_y_th) == len(timestamps)
+    x_velocities = []
+    y_velocities = []
+    th_velocities = []
+    for i in range(len(timestamps) - 1):
+        delta_time = timestamps[i + 1] / 1e6 \
+                     - timestamps[i] / 1e6
+        x_y_th_sample = np.array(x_y_th[i])
+        # import pdb
+        # pdb.set_trace()
+        x_pose = float(x_y_th_sample[0])
+        x_velocity = x_pose / delta_time
+        x_velocities.append(x_velocity)
+        y_pose = float(x_y_th_sample[1])
+        y_velocity = y_pose / delta_time
+        y_velocities.append(y_velocity)
+        th_pose = float(x_y_th_sample[2])
+        th_velocity = th_pose / delta_time
+        th_velocities.append(th_velocity)
+    return x_velocities, y_velocities, th_velocities
+
+
 def get_speeds(se3s, timestamps):
     assert len(se3s) == len(timestamps)
     speeds = []
@@ -108,7 +132,7 @@ def get_poses(se3s):
     poses = []
     pose = np.identity(4)
     for i in range(len(se3s)):
-        pose = pose * se3s[i]
+        pose = pose @ se3s[i]
         poses.append(pose)
 
     x_position = [pose[0, 3] for pose in poses]
@@ -171,6 +195,77 @@ def get_ground_truth_poses_from_csv(path_to_gt_csv):
         pose[1, 3] = y_vals[i]
         se3s.append(pose)
     return se3s, timestamps
+
+
+def get_ground_truth_poses_from_csv_as_se3(path_to_gt_csv):
+    """
+    Load poses from csv for the Oxford radar robotcar 10k dataset as SE3s.
+    """
+    df = pd.read_csv(path_to_gt_csv)
+    # print(df.head())
+    x_vals = df['x']
+    y_vals = df['y']
+    th_vals = df['yaw']
+    timestamps = df['source_radar_timestamp']
+
+    se3s = []
+    for i in range(len(df.index)):
+        th = th_vals[i]
+        pose = np.identity(4)
+        pose[0, 0] = np.cos(th)
+        pose[0, 1] = -np.sin(th)
+        pose[1, 0] = np.sin(th)
+        pose[1, 1] = np.cos(th)
+        pose[0, 3] = x_vals[i]
+        pose[1, 3] = y_vals[i]
+        se3s.append(SE3.from_matrix(np.asarray(pose)))
+    return se3s, timestamps
+
+
+def get_se3s_from_raw_se3s(raw_se3s):
+    """
+    Transform from raw se3 matrices into fancier SE3 type
+    """
+    se3s = []
+    for pose in raw_se3s:
+        se3s.append(SE3.from_matrix(np.asarray(pose)))
+    return se3s
+
+
+def get_se3s_from_x_y_th(x_y_th):
+    """
+    Transform from x_y_th list into fancier SE3 type
+    """
+    se3s = []
+    for sample in x_y_th:
+        th = float(sample[2])
+        pose = np.identity(4)
+        pose[0, 0] = np.cos(th)
+        pose[0, 1] = -np.sin(th)
+        pose[1, 0] = np.sin(th)
+        pose[1, 1] = np.cos(th)
+        pose[0, 3] = float(sample[0])
+        pose[1, 3] = float(sample[1])
+        se3s.append(SE3.from_matrix(np.asarray(pose)))
+    return se3s
+
+
+def get_raw_se3s_from_x_y_th(x_y_th):
+    """
+    Transform from x_y_th list into raw SE3 type
+    """
+    se3s = []
+    for sample in x_y_th:
+        th = float(sample[2])
+        pose = np.identity(4)
+        pose[0, 0] = np.cos(th)
+        pose[0, 1] = -np.sin(th)
+        pose[1, 0] = np.sin(th)
+        pose[1, 1] = np.cos(th)
+        pose[0, 3] = float(sample[0])
+        pose[1, 3] = float(sample[1])
+        se3s.append(pose)
+    return se3s
 
 
 if __name__ == "__main__":

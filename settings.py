@@ -6,6 +6,11 @@ import random
 np.random.seed(0)
 random.seed(0)
 
+# Colours
+GT_COLOUR = "tab:green"
+RO_COLOUR = "tab:blue"
+AUX1_COLOUR = "tab:red"
+
 # General dataset parameters
 TOTAL_SAMPLES = 1
 RADAR_IMAGE_DIMENSION = 3600
