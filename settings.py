@@ -11,6 +11,9 @@ GT_COLOUR = "tab:green"
 RO_COLOUR = "tab:blue"
 AUX1_COLOUR = "tab:red"
 
+# Offset
+K_RADAR_INDEX_OFFSET = 0
+
 # General dataset parameters
 TOTAL_SAMPLES = 1
 RADAR_IMAGE_DIMENSION = 3600

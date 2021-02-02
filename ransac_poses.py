@@ -11,6 +11,7 @@ from pathlib import Path
 import shutil
 from argparse import ArgumentParser
 import settings
+import pdb
 from pyslam.metrics import TrajectoryMetrics
 from pose_tools.pose_utils import *
 from unpack_ro_protobuf import get_ro_state_from_pb, get_matrix_from_pb
@@ -39,7 +40,6 @@ def ransac_motion_estimation(params, radar_state_mono):
     #     "/workspace/data/RadarDataLogs/2019-01-10-14-50-05-radar-oxford-10k/gt/radar_odometry.csv")
     # # print(se3s[0])
 
-    # k_start_index_from_odometry = 50
     # ro_se3s = []
     # ro_timestamps = []
 
@@ -128,8 +128,6 @@ def plot_all_sources(params):
         shutil.rmtree(output_path)
     output_path.mkdir(parents=True)
 
-    k_start_index_from_odometry = 50
-
     se3s, timestamps = get_ground_truth_poses_from_csv(
         "/workspace/data/RadarDataLogs/2019-01-10-14-50-05-radar-oxford-10k/gt/radar_odometry.csv")
 
@@ -155,11 +153,11 @@ def plot_all_sources(params):
     gt_start_time_offset = timestamps[0]
     gt_time_seconds = [(x - gt_start_time_offset) / 1e6 for x in timestamps[1:]]
     gt_x, gt_y, gt_th = get_x_y_th_velocities_from_poses(se3s, timestamps)
-    gt_x = gt_x[k_start_index_from_odometry:]
+    gt_x = gt_x[settings.K_RADAR_INDEX_OFFSET:]
 
     plt.figure(figsize=(15, 5))
     dim = params.num_samples
-    # plt.xlim(0, dim)
+    plt.xlim(0, 150)
     plt.grid()
     # plt.plot(ro_time_seconds, ro_x, '.-', label="ro_x")
     # plt.plot(ro_time_seconds, ro_y, '.-', label="ro_y")
@@ -189,56 +187,80 @@ def get_metrics(params):
         shutil.rmtree(output_path)
     output_path.mkdir(parents=True)
 
-    k_start_index_from_odometry = 50
-
-    gt_se3s, gt_timestamps = get_ground_truth_poses_from_csv_as_se3(
+    gt_se3s, gt_timestamps = get_ground_truth_poses_from_csv(
         "/workspace/data/RadarDataLogs/2019-01-10-14-50-05-radar-oxford-10k/gt/radar_odometry.csv")
-    gt_se3s = gt_se3s[k_start_index_from_odometry:]
+    gt_se3s = gt_se3s[settings.K_RADAR_INDEX_OFFSET:]
 
     # Pose estimates from full matches
     full_matches_timestamps, full_matches_x_y_th = get_timestamps_and_x_y_th_from_csv(
         params.input_path + "full_matches_poses.csv")
-    full_matches_se3s = get_se3s_from_x_y_th(full_matches_x_y_th)
+    full_matches_se3s = get_raw_se3s_from_x_y_th(full_matches_x_y_th)
 
     # Pose estimates from inliers only
     inlier_timestamps, inlier_x_y_th = get_timestamps_and_x_y_th_from_csv(params.input_path + "inliers_poses.csv")
-    inlier_se3s = get_se3s_from_x_y_th(inlier_x_y_th)
+    inlier_se3s = get_raw_se3s_from_x_y_th(inlier_x_y_th)
 
     # A quick plot just to sanity check this thing
-    plt.figure(figsize=(15, 5))
-    dim = params.num_samples
-    plt.xlim(0, dim)
-    plt.grid()
-    x_full = [float(sample[0]) for sample in full_matches_x_y_th]
-    x_inlier = [float(sample[0]) for sample in inlier_x_y_th]
-    x_gt = [se3.trans[0] for se3 in gt_se3s]
+    # plt.figure(figsize=(15, 5))
+    # dim = params.num_samples
+    # plt.xlim(0, dim)
+    # plt.grid()
+    # x_full = [float(sample[0]) for sample in full_matches_x_y_th]
+    # x_inlier = [float(sample[0]) for sample in inlier_x_y_th]
+    # x_gt = [se3.trans[0] for se3 in gt_se3s]
+    #
+    # plt.plot(x_full, '.-', label="full_x")
+    # plt.plot(x_inlier, '.-', label="inlier_x")
+    # plt.plot(x_gt, '.-', label="gt_x")
+    # plt.title("Test")
+    # plt.xlabel("Sample index")
+    # plt.ylabel("units/sample")
+    # plt.legend()
+    # plt.savefig("%s%s" % (output_path, "/quick_odometry_comparison.pdf"))
+    # plt.close()
 
-    plt.plot(x_full, '.-', label="full_x")
-    plt.plot(x_inlier, '.-', label="inlier_x")
-    plt.plot(x_gt, '.-', label="gt_x")
-    plt.title("Test")
-    plt.xlabel("Sample index")
-    plt.ylabel("units/sample")
-    plt.legend()
-    plt.savefig("%s%s" % (output_path, "/quick_odometry_comparison.pdf"))
-    plt.close()
-
-    relative_pose_index = k_start_index_from_odometry + 1
+    relative_pose_index = settings.K_RADAR_INDEX_OFFSET + 1
     relative_pose_timestamp = gt_timestamps[relative_pose_index]
 
     # ensure timestamps are within a reasonable limit of each other (microseconds)
     assert (full_matches_timestamps[0] - relative_pose_timestamp) < 500
     assert (inlier_timestamps[0] - relative_pose_timestamp) < 500
 
-    T_gt = gt_se3s
-    T_est = full_matches_se3s
-    segment_lengths = [10, 50, 100]
-    tm_gt_est = TrajectoryMetrics(T_gt, T_est)
-    print_trajectory_metrics(tm_gt_est, segment_lengths, data_name="full match")
+    # *****************************************************************
+    # CORRECTION: making global poses from the relative poses
+    gt_global_se3s = [np.identity(4)]
+    for i in range(1, len(gt_se3s)):
+        gt_global_se3s.append(gt_global_se3s[i - 1] @ gt_se3s[i])
+    gt_global_SE3s = get_se3s_from_raw_se3s(gt_global_se3s)
 
-    T_est = inlier_se3s
-    tm_gt_est = TrajectoryMetrics(T_gt, T_est)
-    print_trajectory_metrics(tm_gt_est, segment_lengths, data_name="inlier")
+    fm_global_se3s = [np.identity(4)]
+    for i in range(1, len(full_matches_se3s)):
+        fm_global_se3s.append(fm_global_se3s[i - 1] @ full_matches_se3s[i])
+    full_matches_global_SE3s = get_se3s_from_raw_se3s(fm_global_se3s)
+
+    inlier_global_se3s = [np.identity(4)]
+    for i in range(1, len(inlier_se3s)):
+        inlier_global_se3s.append(inlier_global_se3s[i - 1] @ inlier_se3s[i])
+    inlier_global_SE3s = get_se3s_from_raw_se3s(inlier_global_se3s)
+    # *****************************************************************
+
+    segment_lengths = [100, 200, 300, 400, 500, 600, 700, 800]
+
+    tm_gt_fullmatches = TrajectoryMetrics(gt_global_SE3s, full_matches_global_SE3s)
+    print_trajectory_metrics(tm_gt_fullmatches, segment_lengths, data_name="full match")
+
+    tm_gt_inliers = TrajectoryMetrics(gt_global_SE3s, inlier_global_SE3s)
+    print_trajectory_metrics(tm_gt_inliers, segment_lengths, data_name="inlier")
+
+    # Visualiser experimenting
+    from pyslam.visualizers import TrajectoryVisualizer
+    visualiser = TrajectoryVisualizer({"full_matches": tm_gt_fullmatches, "inliers": tm_gt_inliers})
+    visualiser.plot_cum_norm_err(outfile="/workspace/data/visualised_metrics_tmp/cumulative_norm_errors.pdf")
+    # visualiser.plot_norm_err(outfile="/workspace/data/visualised_metrics_tmp/norm_errors.pdf")
+    visualiser.plot_segment_errors(segs=segment_lengths,
+                                   outfile="/workspace/data/visualised_metrics_tmp/segment_errors.pdf")
+    visualiser.plot_topdown(which_plane='xy',
+                            outfile="/workspace/data/visualised_metrics_tmp/topdown.pdf")
 
 
 def plot_ground_traces(params):
@@ -248,11 +270,9 @@ def plot_ground_traces(params):
         shutil.rmtree(output_path)
     output_path.mkdir(parents=True)
 
-    k_start_index_from_odometry = 50
-
     gt_se3s, gt_timestamps = get_ground_truth_poses_from_csv(
         "/workspace/data/RadarDataLogs/2019-01-10-14-50-05-radar-oxford-10k/gt/radar_odometry.csv")
-    gt_se3s = gt_se3s[k_start_index_from_odometry:]
+    gt_se3s = gt_se3s[settings.K_RADAR_INDEX_OFFSET:]
 
     # Pose estimates from full matches
     full_matches_timestamps, full_matches_x_y_th = get_timestamps_and_x_y_th_from_csv(
@@ -285,12 +305,12 @@ def print_trajectory_metrics(tm_gt_est, segment_lengths, data_name="this"):
     print("\nTrajectory Metrics for", data_name, "set:")
     # print("endpoint_error:", tm_gt_est.endpoint_error(segment_lengths))
     # print("segment_errors:", tm_gt_est.segment_errors(segment_lengths))
-    # print("traj_errors:", tm_gt_est.traj_errors(segment_lengths))
-    # print("rel_errors:", tm_gt_est.rel_errors(segment_lengths))
-    # print("error_norms:", tm_gt_est.error_norms(segment_lengths))
-    print("mean_err:", tm_gt_est.mean_err(segment_lengths))
-    print("cum_err:", tm_gt_est.cum_err(segment_lengths))
-    print("rms_err:", tm_gt_est.rms_err(segment_lengths))
+    # print("traj_errors:", tm_gt_est.traj_errors())
+    # print("rel_errors:", tm_gt_est.rel_errors())
+    # print("error_norms:", tm_gt_est.error_norms())
+    print("mean_err:", tm_gt_est.mean_err())
+    # print("cum_err:", tm_gt_est.cum_err())
+    print("rms_err:", tm_gt_est.rms_err())
 
 
 def main():
@@ -310,7 +330,7 @@ def main():
 
     # ransac_motion_estimation(params, radar_state_mono)
     # plot_all_sources(params)
-    # get_metrics(params)
+    get_metrics(params)
     plot_ground_traces(params)
 
 

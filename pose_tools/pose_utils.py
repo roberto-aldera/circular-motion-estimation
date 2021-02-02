@@ -185,7 +185,7 @@ def get_ground_truth_poses_from_csv(path_to_gt_csv):
 
     se3s = []
     for i in range(len(df.index)):
-        th = th_vals[i]
+        th = -th_vals[i]
         pose = np.identity(4)
         pose[0, 0] = np.cos(th)
         pose[0, 1] = -np.sin(th)

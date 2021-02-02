@@ -46,7 +46,7 @@ def main():
 
         matched_points.append([x1, x2, y1, y2])
 
-    plt.title("Proposed matches")
+    plt.title("RANSAC playground")
     plt.grid()
     plt.xlabel("X")
     plt.ylabel("Y")
