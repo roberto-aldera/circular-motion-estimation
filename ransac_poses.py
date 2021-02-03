@@ -89,7 +89,7 @@ def ransac_motion_estimation(params, radar_state_mono):
         P1 = np.transpose(P1)
         P2 = np.transpose(P2)
         v, theta_R = get_motion_estimate_from_svd(P1, P2, weights=np.ones(P1.shape[1]))
-        pose_from_svd = [v[1], v[0], theta_R]
+        pose_from_svd = [v[1], v[0], -theta_R]  # this line applies the transform to get into the robot frame
         poses_from_full_match_set.append(pose_from_svd)
 
         print("SVD motion estimate (x, y, th):", pose_from_svd)
@@ -101,7 +101,7 @@ def ransac_motion_estimation(params, radar_state_mono):
         P1_inliers = P1[:, champion_inliers]
         P2_inliers = P2[:, champion_inliers]
         v, theta_R = get_motion_estimate_from_svd(P1_inliers, P2_inliers, weights=np.ones(P1_inliers.shape[1]))
-        pose_from_svd = [v[1], v[0], theta_R]
+        pose_from_svd = [v[1], v[0], -theta_R]  # this line applies the transform to get into the robot frame
         poses_from_inliers.append(pose_from_svd)
         print("Pose from SVD on best inliers:", pose_from_svd)
 
@@ -200,24 +200,12 @@ def get_metrics(params):
     inlier_timestamps, inlier_x_y_th = get_timestamps_and_x_y_th_from_csv(params.input_path + "inliers_poses.csv")
     inlier_se3s = get_raw_se3s_from_x_y_th(inlier_x_y_th)
 
-    # A quick plot just to sanity check this thing
-    # plt.figure(figsize=(15, 5))
-    # dim = params.num_samples
-    # plt.xlim(0, dim)
-    # plt.grid()
-    # x_full = [float(sample[0]) for sample in full_matches_x_y_th]
-    # x_inlier = [float(sample[0]) for sample in inlier_x_y_th]
-    # x_gt = [se3.trans[0] for se3 in gt_se3s]
-    #
-    # plt.plot(x_full, '.-', label="full_x")
-    # plt.plot(x_inlier, '.-', label="inlier_x")
-    # plt.plot(x_gt, '.-', label="gt_x")
-    # plt.title("Test")
-    # plt.xlabel("Sample index")
-    # plt.ylabel("units/sample")
-    # plt.legend()
-    # plt.savefig("%s%s" % (output_path, "/quick_odometry_comparison.pdf"))
-    # plt.close()
+    # Quick cropping hack *****
+    # cropped_size = 750
+    # gt_se3s = gt_se3s[:cropped_size]
+    # full_matches_se3s = full_matches_se3s[:cropped_size]
+    # inlier_se3s = inlier_se3s[:cropped_size]
+    # **************************************************
 
     relative_pose_index = settings.K_RADAR_INDEX_OFFSET + 1
     relative_pose_timestamp = gt_timestamps[relative_pose_index]
@@ -225,6 +213,28 @@ def get_metrics(params):
     # ensure timestamps are within a reasonable limit of each other (microseconds)
     assert (full_matches_timestamps[0] - relative_pose_timestamp) < 500
     assert (inlier_timestamps[0] - relative_pose_timestamp) < 500
+
+    # ANOTHER QUICK CHECK:
+    ro_x, ro_y, ro_th = get_x_y_th_from_se3s(full_matches_se3s)
+    gt_x, gt_y, gt_th = get_x_y_th_from_se3s(gt_se3s)
+
+    plt.figure(figsize=(15, 10))
+    dim = params.num_samples
+    # plt.xlim(0, dim)
+    plt.grid()
+    plt.plot(ro_x, '.-', label="ro_x")
+    plt.plot(ro_y, '.-', label="ro_y")
+    plt.plot(ro_th, '.-', label="ro_th")
+    plt.plot(gt_x[:dim], '.-', label="gt_x")
+    plt.plot(gt_y[:dim], '.-', label="gt_y")
+    plt.plot(gt_th[:dim], '.-', label="gt_th")
+    plt.title("Pose estimates: RO vs ground-truth")
+    plt.xlabel("Time (s)")
+    plt.ylabel("units/s")
+    plt.legend()
+    plt.savefig("%s%s" % (output_path, "/odometry_comparison.png"))
+    plt.close()
+    # *****************************************************************
 
     # *****************************************************************
     # CORRECTION: making global poses from the relative poses
@@ -244,7 +254,8 @@ def get_metrics(params):
     inlier_global_SE3s = get_se3s_from_raw_se3s(inlier_global_se3s)
     # *****************************************************************
 
-    segment_lengths = [100, 200, 300, 400, 500, 600, 700, 800]
+    # segment_lengths = [100, 200, 300, 400, 500, 600, 700, 800]
+    segment_lengths = [100, 200, 300]
 
     tm_gt_fullmatches = TrajectoryMetrics(gt_global_SE3s, full_matches_global_SE3s)
     print_trajectory_metrics(tm_gt_fullmatches, segment_lengths, data_name="full match")
@@ -259,7 +270,7 @@ def get_metrics(params):
     # visualiser.plot_norm_err(outfile="/workspace/data/visualised_metrics_tmp/norm_errors.pdf")
     visualiser.plot_segment_errors(segs=segment_lengths,
                                    outfile="/workspace/data/visualised_metrics_tmp/segment_errors.pdf")
-    visualiser.plot_topdown(which_plane='xy',
+    visualiser.plot_topdown(which_plane='yx',  # this is a custom flip to conform to MRG convention, instead of xy
                             outfile="/workspace/data/visualised_metrics_tmp/topdown.pdf")
 
 
@@ -331,7 +342,7 @@ def main():
     # ransac_motion_estimation(params, radar_state_mono)
     # plot_all_sources(params)
     get_metrics(params)
-    plot_ground_traces(params)
+    # plot_ground_traces(params)
 
 
 if __name__ == "__main__":

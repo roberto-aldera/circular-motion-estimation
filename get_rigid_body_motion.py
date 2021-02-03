@@ -48,7 +48,7 @@ def main():
 
     weights = np.ones(N)
     v, theta_R = get_motion_estimate_from_svd(P1, P2, weights)
-    print("True translation:", T_offset, "\n estimate:", v)
+    print("True translation:\n", T_offset, "\n estimate:", v)
     print("True rotation:", theta, "\n estimate:", theta_R)
 
     # plt.figure(figsize=(10, 10))
