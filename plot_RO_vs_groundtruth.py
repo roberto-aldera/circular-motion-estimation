@@ -1,3 +1,5 @@
+# python plot_RO_vs_groundtruth.py --input_path
+# /workspace/data/landmark-distortion/ro_state_pb_developing/2019-01-10-14-50-05-radar-oxford-10k-RO-output/
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
@@ -7,7 +9,6 @@ from argparse import ArgumentParser
 import settings
 from pose_tools.pose_utils import *
 from unpack_ro_protobuf import get_ro_state_from_pb, get_matrix_from_pb
-from pyslam.metrics import TrajectoryMetrics
 
 # Include paths - need these for interfacing with custom protobufs
 sys.path.insert(-1, "/workspace/code/corelibs/src/tools-python")
@@ -30,7 +31,7 @@ def plot_odometries(params, radar_state_mono):
         "/workspace/data/RadarDataLogs/2019-01-10-14-50-05-radar-oxford-10k/gt/radar_odometry.csv")
     # print(se3s[0])
 
-    k_start_index_from_odometry = 50
+    k_start_index_from_odometry = 0
     ro_se3s = []
     ro_timestamps = []
 
@@ -76,23 +77,59 @@ def plot_odometries(params, radar_state_mono):
     plt.savefig("%s%s" % (output_path, "/odometry_comparison.pdf"))
     plt.close()
 
-    # Some code to run KITTI metrics over poses, based on pyslam TrajectoryMetrics
-    se3s, timestamps = get_ground_truth_poses_from_csv_as_se3(
+
+def plot_basic_readings(params, radar_state_mono):
+    # Used to sanity check the ground truth and RO data which should be in the same reference frame when plotted here
+    figure_path = params.input_path + "figs_odometry/"
+    output_path = Path(figure_path)
+    if output_path.exists() and output_path.is_dir():
+        shutil.rmtree(output_path)
+    output_path.mkdir(parents=True)
+
+    gt_se3s, gt_timestamps = get_ground_truth_poses_from_csv(
         "/workspace/data/RadarDataLogs/2019-01-10-14-50-05-radar-oxford-10k/gt/radar_odometry.csv")
 
-    T_gt = se3s
-    T_ro = get_se3s_from_raw_se3s(ro_se3s)
-    segment_lengths = [1, 5, 10, 20]
-    tm_gt_ro = TrajectoryMetrics(T_gt, T_ro)
-    print("Trajectory Metrics:")
-    print("endpoint_error:", tm_gt_ro.endpoint_error(segment_lengths))
-    print("segment_errors:", tm_gt_ro.segment_errors(segment_lengths))
-    print("traj_errors:", tm_gt_ro.traj_errors(segment_lengths))
-    print("rel_errors:", tm_gt_ro.rel_errors(segment_lengths))
-    print("error_norms:", tm_gt_ro.error_norms(segment_lengths))
-    print("mean_err:", tm_gt_ro.mean_err(segment_lengths))
-    print("cum_err:", tm_gt_ro.cum_err(segment_lengths))
-    print("rms_err:", tm_gt_ro.rms_err(segment_lengths))
+    k_start_index_from_odometry = 0
+    ro_se3s = []
+    ro_timestamps = []
+
+    for i in range(params.num_samples):
+        pb_state, name_scan, _ = radar_state_mono[i]
+        ro_state = get_ro_state_from_pb(pb_state)
+
+        relative_pose_index = i + k_start_index_from_odometry + 1
+        relative_pose_timestamp = gt_timestamps[relative_pose_index]
+
+        # ensure timestamps are within a reasonable limit of each other (microseconds)
+        assert (ro_state.timestamp - relative_pose_timestamp) < 500
+
+        # Get motion estimate that was calculated from RO
+        ro_se3, ro_timestamp = get_poses_from_serialised_transform(ro_state.g_motion_estimate)
+        ro_se3s.append(ro_se3)
+        ro_timestamps.append(ro_timestamp)
+
+    ro_x, ro_y, ro_th = get_x_y_th_from_se3s(ro_se3s)
+    gt_x, gt_y, gt_th = get_x_y_th_from_se3s(gt_se3s)
+    gt_x, gt_y, gt_th = gt_x[k_start_index_from_odometry:], \
+                        gt_y[k_start_index_from_odometry:], \
+                        gt_th[k_start_index_from_odometry:]
+
+    plt.figure(figsize=(15, 10))
+    dim = params.num_samples
+    # plt.xlim(0, dim)
+    plt.grid()
+    plt.plot(ro_x, '.-', label="ro_x")
+    plt.plot(ro_y, '.-', label="ro_y")
+    plt.plot(ro_th, '.-', label="ro_th")
+    plt.plot(gt_x[:dim], '.-', label="gt_x")
+    plt.plot(gt_y[:dim], '.-', label="gt_y")
+    plt.plot(gt_th[:dim], '.-', label="gt_th")
+    plt.title("Pose estimates: RO vs ground-truth")
+    plt.xlabel("Time (s)")
+    plt.ylabel("units/s")
+    plt.legend()
+    plt.savefig("%s%s" % (output_path, "/odometry_comparison.png"))
+    plt.close()
 
 
 def main():
@@ -111,7 +148,8 @@ def main():
     print("Number of indices in this radar odometry state monolithic:", len(radar_state_mono))
 
     # get a landmark set in and plot it
-    plot_odometries(params, radar_state_mono)
+    # plot_odometries(params, radar_state_mono)
+    plot_basic_readings(params, radar_state_mono)
 
 
 if __name__ == "__main__":
