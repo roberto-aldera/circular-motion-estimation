@@ -79,14 +79,13 @@ def get_metrics(gt_se3s, est1_se3s, est2_se3s):
 
     # Visualiser experimenting
     from pyslam.visualizers import TrajectoryVisualizer
+    output_folder = "/workspace/data/landmark-distortion/figs_test_the_metrics/"
     visualiser = TrajectoryVisualizer({"estimate_1": tm_gt_est1, "estimate_2": tm_gt_est2})
     visualiser.plot_cum_norm_err(
-        outfile="/workspace/data/landmark-distortion/figs_test_the_metrics/cumulative_norm_errors.pdf")
-    visualiser.plot_norm_err(outfile="/workspace/data/landmark-distortion/figs_test_the_metrics/norm_errors.pdf")
-    visualiser.plot_segment_errors(segs=segment_lengths,
-                                   outfile="/workspace/data/landmark-distortion/figs_test_the_metrics/segment_errors.pdf")
-    visualiser.plot_topdown(which_plane='xy',
-                            outfile="/workspace/data/landmark-distortion/figs_test_the_metrics/topdown.pdf")
+        outfile=output_folder + "cumulative_norm_errors.pdf")
+    visualiser.plot_norm_err(outfile=output_folder + "norm_errors.pdf")
+    visualiser.plot_segment_errors(segs=segment_lengths, outfile=output_folder + "segment_errors.pdf")
+    visualiser.plot_topdown(which_plane='xy', outfile=output_folder + "topdown.pdf")
 
 
 def print_trajectory_metrics(tm_gt_est, segment_lengths):

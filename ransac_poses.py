@@ -95,8 +95,9 @@ def ransac_motion_estimation(params, radar_state_mono):
         print("SVD motion estimate (x, y, th):", pose_from_svd)
 
         # Running SVD on all inliers from the best RANSAC model
-        pose_estimates = get_pose_estimates_with_ransac(P1, P2, iterations=100)
-        champion_inliers = get_all_inliers_from_best_ransac_motion_estimate(P1, P2, pose_estimates)
+        pose_estimates = get_pose_estimates_with_ransac(P1, P2, iterations=50)
+        champion_inliers = get_all_inliers_from_best_ransac_motion_estimate(P1, P2, pose_estimates,
+                                                                            inlier_threshold=0.01)
 
         P1_inliers = P1[:, champion_inliers]
         P2_inliers = P2[:, champion_inliers]
@@ -201,10 +202,10 @@ def get_metrics(params):
     inlier_se3s = get_raw_se3s_from_x_y_th(inlier_x_y_th)
 
     # Quick cropping hack *****
-    # cropped_size = 750
-    # gt_se3s = gt_se3s[:cropped_size]
-    # full_matches_se3s = full_matches_se3s[:cropped_size]
-    # inlier_se3s = inlier_se3s[:cropped_size]
+    cropped_size = 2000
+    gt_se3s = gt_se3s[:cropped_size]
+    full_matches_se3s = full_matches_se3s[:cropped_size]
+    inlier_se3s = inlier_se3s[:cropped_size]
     # **************************************************
 
     relative_pose_index = settings.K_RADAR_INDEX_OFFSET + 1
@@ -254,8 +255,9 @@ def get_metrics(params):
     inlier_global_SE3s = get_se3s_from_raw_se3s(inlier_global_se3s)
     # *****************************************************************
 
-    # segment_lengths = [100, 200, 300, 400, 500, 600, 700, 800]
-    segment_lengths = [100, 200, 300]
+    segment_lengths = [100, 200, 300, 400, 500, 600, 700, 800]
+    # segment_lengths = [10, 20]
+    # segment_lengths = [100, 200, 300, 400]
 
     tm_gt_fullmatches = TrajectoryMetrics(gt_global_SE3s, full_matches_global_SE3s)
     print_trajectory_metrics(tm_gt_fullmatches, segment_lengths, data_name="full match")
@@ -340,8 +342,8 @@ def main():
     print("Number of indices in this radar odometry state monolithic:", len(radar_state_mono))
 
     # ransac_motion_estimation(params, radar_state_mono)
-    # plot_all_sources(params)
-    get_metrics(params)
+    plot_all_sources(params)
+    # get_metrics(params)
     # plot_ground_traces(params)
 
 
