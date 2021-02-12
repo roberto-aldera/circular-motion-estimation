@@ -93,11 +93,8 @@ def plot_points_and_poses(P1, P2, start_position, end_position):
 
 def main():
     print("Running kinematics on toy data...")
-    theta = 0.2  # np.pi / 32
-    T_x = 1
-    T_y = 1
-    pose = get_transform_by_translation_and_theta(T_x, T_y, theta)
-    # pose = get_transform_by_r_and_theta(2, np.pi/8)
+    # pose = get_transform_by_translation_and_theta(T_x=1, T_y=1, theta=0.2)
+    pose = get_transform_by_r_and_theta(rotation_radius=-5, theta=-np.pi / 8)
 
     x_coords = np.array([1, 1.5, 1, -1, -1])
     y_coords = np.array([-1, 0, 1, 1, -1])
