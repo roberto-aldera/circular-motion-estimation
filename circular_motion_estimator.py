@@ -9,13 +9,15 @@ import traceback, sys, code
 from pathlib import Path
 import shutil
 from argparse import ArgumentParser
+from dataclasses import dataclass
+import operator
 import settings
 import pdb
 # from pyslam.metrics import TrajectoryMetrics
 from pose_tools.pose_utils import *
 from unpack_ro_protobuf import get_ro_state_from_pb, get_matrix_from_pb
 from get_rigid_body_motion import get_motion_estimate_from_svd
-from R_and_theta_utilities import get_relative_range_and_bearing_from_x_and_y, get_theta_and_radius_from_single_match
+from R_and_theta_utilities import get_relative_range_and_bearing_from_x_and_y, get_theta_and_curvature_from_single_match
 from kinematics import get_transform_by_r_and_theta
 
 # Include paths - need these for interfacing with custom protobufs
@@ -26,6 +28,16 @@ sys.path.insert(-1, "/workspace/code/radar-navigation/build/radarnavigation_data
 from mrg.logging.indexed_monolithic import IndexedMonolithic
 from mrg.adaptors.pointcloud import PbSerialisedPointCloudToPython
 from mrg.pointclouds.classes import PointCloud
+
+
+@dataclass
+class CircularMotionEstimate:
+    theta: float
+    curvature: float
+    range_1: float
+    range_2: float
+    bearing_1: float
+    bearing_2: float
 
 
 def circular_motion_estimation(params, radar_state_mono):
@@ -72,8 +84,7 @@ def circular_motion_estimation(params, radar_state_mono):
             plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5, alpha=1)
             matched_points.append([x1, x2, y1, y2])
 
-        thetas = []
-        radii = []
+        circular_motion_estimates = []
 
         for tmp_idx in range(len(matched_points)):
             x1 = matched_points[tmp_idx][3]
@@ -81,69 +92,99 @@ def circular_motion_estimation(params, radar_state_mono):
             x2 = matched_points[tmp_idx][2]
             y2 = matched_points[tmp_idx][0]
 
-            if x1 == x2 and y1 == y2:
-                print("\t\t\t*** x1 == x2 and y1 == y2 for idx:", tmp_idx)
-            else:
-                r1, a1 = get_relative_range_and_bearing_from_x_and_y(relative_x=x1, relative_y=y1)
-                r2, a2 = get_relative_range_and_bearing_from_x_and_y(relative_x=x2, relative_y=y2)
-                theta, radius = get_theta_and_radius_from_single_match(d_1=r1, d_2=r2, phi_1=a1, phi_2=a2)
+            # if x1 == x2 and y1 == y2:
+            #     print("\t\t\t*** x1 == x2 and y1 == y2 for idx:", tmp_idx)
+            # else:
+            r1, a1 = get_relative_range_and_bearing_from_x_and_y(relative_x=x1, relative_y=y1)
+            r2, a2 = get_relative_range_and_bearing_from_x_and_y(relative_x=x2, relative_y=y2)
+            theta, curvature = get_theta_and_curvature_from_single_match(d_1=r1, d_2=r2, phi_1=a1, phi_2=a2)
+            circular_motion_estimates.append(
+                CircularMotionEstimate(theta=theta, curvature=curvature, range_1=r1, range_2=r2, bearing_1=a1,
+                                       bearing_2=a2))
 
-                circular_motion_pose = get_transform_by_r_and_theta(radius, theta)
+        # sort circular motion estimates by theta value
+        circular_motion_estimates.sort(key=operator.attrgetter('theta'))
 
-                thetas.append(theta)
-                radii.append(radius)
+        middle_cme = []
+        middle_cme_idxs = []
+        cm_poses = []
 
-        # find medians
-        theta_median = statistics.median(thetas)
-        print("theta median:", theta_median)
-        print("theta mean:", statistics.mean(thetas))
+        for idx in range(len(circular_motion_estimates) // 4, 3 * len(circular_motion_estimates) // 4):
+            middle_cme.append(circular_motion_estimates[idx])
+            middle_cme_idxs.append(idx)
 
-        #############################################################################
-        theta_median_idx = np.argsort(thetas)[len(thetas) // 2]
-        theta_q1_idx = np.argsort(thetas)[len(thetas) // 4]
-        theta_q3_idx = np.argsort(thetas)[3 * len(thetas) // 4]
+            cm_poses.append(get_transform_by_r_and_theta(1/circular_motion_estimates[idx].curvature,
+                                                         circular_motion_estimates[idx].theta))
 
-        print("theta median index:", theta_median_idx)
-        print("theta median:", thetas[theta_median_idx])
-        # Now get the theta and radius corresponding to this median value for theta:
-        x1 = matched_points[theta_median_idx][3]
-        y1 = matched_points[theta_median_idx][1]
-        x2 = matched_points[theta_median_idx][2]
-        y2 = matched_points[theta_median_idx][0]
-
-        r1, a1 = get_relative_range_and_bearing_from_x_and_y(relative_x=x1, relative_y=y1)
-        r2, a2 = get_relative_range_and_bearing_from_x_and_y(relative_x=x2, relative_y=y2)
-        theta, radius = get_theta_and_radius_from_single_match(d_1=r1, d_2=r2, phi_1=a1, phi_2=a2)
-
-        circular_motion_pose = get_transform_by_r_and_theta(radius, theta)
-        poses_from_circular_motion.append([circular_motion_pose[0, 3], circular_motion_pose[1, 3],
-                                           np.arctan2(circular_motion_pose[1, 0], circular_motion_pose[0, 0])])
-
+        dx_value = statistics.median([motions[0, 3] for motions in cm_poses])
+        dy_value = statistics.median([motions[1, 3] for motions in cm_poses])
+        dth_value = statistics.median([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses])
+        # poses_from_circular_motion.append([dx_value, dy_value, dth_value])
         #############################################################################
 
-        # find transforms
-        print("x:", circular_motion_pose[0, 3])
-        print("y:", circular_motion_pose[1, 3])
+        # plt.figure(figsize=(10, 10))
+        # plt.plot([cme.theta for cme in circular_motion_estimates], '.')
+        # plt.plot(middle_cme_idxs, [cme.theta for cme in middle_cme], '.')
+        # plt.plot(len(circular_motion_estimates) // 2,
+        #          circular_motion_estimates[len(circular_motion_estimates) // 2].theta, 'r*')
+        # plt.title("Theta values")
+        # plt.grid()
+        # plt.ylim(-0.05, 0.05)
+        # plt.savefig(
+        #     "%s%s%i%s" % (figure_path, "/debugging_thetas", i, ".pdf"))
+        # plt.close()
+
+        # TODO: change to curvature values...
+        tmp_thetas = [cme.theta for cme in middle_cme]
+        tmp_curvatures = [cme.curvature for cme in middle_cme]
+        # histogram_vals = np.array([tmp_thetas, tmp_curvatures])
+        # # tmp_max = np.amax(histogram_vals, axis=1)
+        # tmp_max_idxs = np.argwhere(histogram_vals == histogram_vals.max())
+        # tmp_pose = get_transform_by_r_and_theta(1 / middle_cme[tmp_max_idxs[0, 0]].radius,
+        #                                         middle_cme[tmp_max_idxs[0, 1]].theta)
+        num_histogram_bins = 300
+        H, xedges, yedges = np.histogram2d(tmp_thetas, tmp_curvatures, bins=num_histogram_bins)
+        # idx = list(H.flatten()).index(H.max())
+        # x, y = idx / H.shape[1], idx % H.shape[1]
+
+        x, y = np.argwhere(H == H.max())[0]
+        # pdb.set_trace()
+
+        tmp_pose = get_transform_by_r_and_theta(1 / np.average(yedges[y:y + 2]), np.average(xedges[x:x + 2]))
+        print("Histogram pose:", tmp_pose)
+
+        dx_value = tmp_pose[0, 3]
+        dy_value = tmp_pose[1, 3]
+        dth_value = np.arctan2(tmp_pose[1, 0], tmp_pose[0, 0])
+        poses_from_circular_motion.append([dx_value, dy_value, dth_value])
 
         plt.figure(figsize=(10, 10))
-        plt.plot(np.sort(thetas), '.')
-        plt.plot(len(thetas) // 2, thetas[theta_median_idx], 'r*')
-        plt.plot(len(thetas) // 4, thetas[theta_q1_idx], 'y*')
-        plt.plot(3 * len(thetas) // 4, thetas[theta_q3_idx], 'y*')
-        # plt.hist(thetas, 100, density=False, facecolor='tab:blue')
-        plt.title("Theta values")
+        plt.hist2d([cme.theta for cme in middle_cme],
+                   [cme.curvature for cme in middle_cme],
+                   num_histogram_bins, density=False)
+        # plt.plot([1 / cme.radius for cme in middle_cme], '.')
+        plt.title("Theta vs curvature values")
+        plt.xlabel("Theta (rad)")
+        plt.ylabel("Curvature")
         plt.grid()
-        plt.ylim(-0.05, 0.05)
-        plt.savefig(
-            "%s%s%i%s" % (figure_path, "/debugging_thetas", i, ".pdf"))
+        plt.savefig("%s%s%i%s" % (figure_path, "/debugging_2d_histogram_", i, ".pdf"))
         plt.close()
-
-        plt.figure(figsize=(10, 10))
-        plt.hist(thetas, 100, density=False, facecolor='tab:blue')
-        plt.title("Theta values")
-        plt.grid()
-        plt.savefig("%s%s" % (figure_path, "/debugging_thetas_histogram.pdf"))
-        plt.close()
+        #
+        # plt.figure(figsize=(10, 10))
+        # plt.hist([cme.theta for cme in circular_motion_estimates], 100, density=False, facecolor='tab:blue')
+        # plt.title("Theta values")
+        # plt.grid()
+        # plt.savefig("%s%s" % (figure_path, "/debugging_thetas_histogram.pdf"))
+        # plt.close()
+        #
+        # plt.figure(figsize=(10, 10))
+        # dx_values = [motions[0, 3] for motions in cm_poses]
+        # print("dx median:", statistics.median(dx_values))
+        # plt.hist(dx_values, 100, density=False, facecolor='tab:blue')
+        # plt.title("dx values")
+        # plt.grid()
+        # plt.savefig("%s%s%i%s" % (figure_path, "/debugging_dx_values_", i, ".pdf"))
+        # plt.close()
 
         # Motion estimate from running SVD on all the points
         P1 = []
@@ -175,9 +216,9 @@ def plot_csv_things(params):
 
     figure_path = params.input_path + "figs_circular_motion_estimation/"
     output_path = Path(figure_path)
-    if output_path.exists() and output_path.is_dir():
-        shutil.rmtree(output_path)
-    output_path.mkdir(parents=True)
+    # if output_path.exists() and output_path.is_dir():
+    #     shutil.rmtree(output_path)
+    # output_path.mkdir(parents=True)
 
     # Pose estimates from SVD on the full set of matches
     full_match_timestamps, full_match_x_y_th = get_timestamps_and_x_y_th_from_csv(
@@ -227,7 +268,7 @@ def main():
     print("Number of indices in this radar odometry state monolithic:", len(radar_state_mono))
 
     circular_motion_estimation(params, radar_state_mono)
-    # plot_csv_things(params)
+    plot_csv_things(params)
 
 
 if __name__ == "__main__":

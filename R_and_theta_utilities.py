@@ -63,17 +63,33 @@ def get_relative_range_and_bearing_from_x_and_y(relative_x, relative_y):
 def get_theta_and_radius_from_single_match(d_1, d_2, phi_1, phi_2):
     if d_1 == d_2 and phi_1 == phi_2:
         # TODO: come back and debug this, not sure why this case occurs but it does sometimes
-        theta = np.nan
-        radius = np.nan
-        print("duplicated occurred...")
-        print("d_1:", d_1, "d_2:", d_2)
-        print("phi_1:", phi_1, "phi_2:", phi_2)
+        # theta = np.nan
+        # radius = np.nan
+        theta = 0
+        radius = np.inf
+        # print("duplicated occurred...")
+        # print("d_1:", d_1, "d_2:", d_2)
+        # print("phi_1:", phi_1, "phi_2:", phi_2)
 
     else:
         theta = 2 * np.arctan(
             (-np.sin(phi_2) + (d_1 / d_2) * np.sin(phi_1)) / ((d_1 / d_2) * np.cos(phi_1) + np.cos(phi_2)))
         radius = (d_2 * np.sin(phi_1 - phi_2 - theta)) / (2 * np.sin(theta / 2) * np.sin(-phi_1 + (theta / 2)))
     return theta, radius
+
+
+def get_theta_and_curvature_from_single_match(d_1, d_2, phi_1, phi_2):
+    if d_1 == d_2 and phi_1 == phi_2:
+        # This can occur when landmarks are in the exact same position as their match (stationary vehicle).
+        theta = 0
+        radius = np.inf
+
+    else:
+        theta = 2 * np.arctan(
+            (-np.sin(phi_2) + (d_1 / d_2) * np.sin(phi_1)) / ((d_1 / d_2) * np.cos(phi_1) + np.cos(phi_2)))
+        radius = (d_2 * np.sin(phi_1 - phi_2 - theta)) / (2 * np.sin(theta / 2) * np.sin(-phi_1 + (theta / 2)))
+    curvature = 1 / radius
+    return theta, curvature
 
 
 def debugging_from_csv_points():
