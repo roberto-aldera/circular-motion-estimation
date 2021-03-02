@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import operator
 import settings
 import pdb
-# from pyslam.metrics import TrajectoryMetrics
+from pyslam.metrics import TrajectoryMetrics
 from pose_tools.pose_utils import *
 from unpack_ro_protobuf import get_ro_state_from_pb, get_matrix_from_pb
 from get_rigid_body_motion import get_motion_estimate_from_svd
@@ -83,20 +83,55 @@ def circular_motion_estimation(params, radar_state_mono):
 
         circular_motion_estimates = get_circular_motion_estimates_from_matches(matched_points)
 
-        # # A staging area for some plotting
-        # plt.figure(figsize=(10, 10))
-        # theta_values = [estimates.theta for estimates in circular_motion_estimates]
-        # curvature_values = [estimates.curvature for estimates in circular_motion_estimates]
-        # norm_thetas = [float(i) / sum(theta_values) for i in theta_values]
-        # norm_curvatures = [float(i) / sum(curvature_values) for i in curvature_values]
-        # plt.plot(norm_curvatures, norm_thetas, '.')
-        # # plt.plot(curvature_values, '.')
-        # plt.title("Theta vs curvature")
-        # plt.grid()
-        # # plt.ylim(-1, 1)
-        # # plt.xlim(-0.0001, 0.0001)
-        # plt.savefig("%s%s%i%s" % (figure_path, "/debugging_curvature_theta_", i, ".pdf"))
-        # plt.close()
+        plotting_off = True
+        if plotting_off is False:
+            # A staging area for some plotting
+            plt.figure(figsize=(10, 10))
+            theta_values = [estimates.theta for estimates in circular_motion_estimates]
+            curvature_values = [estimates.curvature for estimates in circular_motion_estimates]
+            # norm_thetas = [float(i) / max(theta_values) for i in theta_values]
+            # norm_curvatures = [float(i) / max(curvature_values) for i in curvature_values]
+            # plt.plot(norm_curvatures, norm_thetas, '.')
+            plt.plot(curvature_values, theta_values, '.')
+            plt.title("Theta vs curvature")
+            plt.grid()
+            plt.xlabel("Curvature")
+            plt.ylabel("Theta")
+            # plt.ylim(-1, 1)
+            # plt.xlim(-1, 1)
+            plt.savefig("%s%s%i%s" % (figure_path, "/debugging_curvature_theta_", i, ".pdf"))
+            plt.close()
+
+            plt.figure(figsize=(10, 10))
+            plt.plot(np.sort(curvature_values), 'r.', label="curvature")
+            plt.plot(np.sort(theta_values), 'b.', label="theta")
+            plt.title("Sorted curvature and theta values")
+            plt.grid()
+            plt.ylim(-1, 1)
+            # plt.xlim(-0.0001, 0.0001)
+            plt.legend()
+            plt.savefig("%s%s%i%s" % (figure_path, "/debugging_", i, ".pdf"))
+            plt.close()
+
+            # Plot some Gaussians
+            import scipy.stats as stats
+            import math
+            plt.figure(figsize=(10, 10))
+            mu = np.mean(theta_values)
+            variance = np.var(theta_values)
+            sigma = math.sqrt(variance)
+            x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 100)
+            # plt.plot(x, stats.norm.pdf(x, mu, sigma), label="theta")
+
+            mu = np.mean(curvature_values)
+            variance = np.var(curvature_values)
+            sigma = math.sqrt(variance)
+            x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 100)
+            plt.plot(x, stats.norm.pdf(x, mu, sigma), label="curvature")
+            plt.grid()
+            plt.legend()
+            plt.savefig("%s%s%i%s" % (figure_path, "/gaussian_", i, ".pdf"))
+            plt.close()
 
         # sort circular motion estimates by theta value
         circular_motion_estimates.sort(key=operator.attrgetter('theta'))
@@ -213,6 +248,114 @@ def plot_csv_things(params):
     plt.close()
 
 
+def get_metrics(params):
+    # Some code to run KITTI metrics over poses, based on pyslam TrajectoryMetrics
+    figure_path = params.input_path + "figs_circular_motion_estimation/error_metrics/"
+    output_path = Path(figure_path)
+    if output_path.exists() and output_path.is_dir():
+        shutil.rmtree(output_path)
+    output_path.mkdir(parents=True)
+
+    gt_se3s, gt_timestamps = get_ground_truth_poses_from_csv(
+        "/workspace/data/RadarDataLogs/2019-01-10-14-50-05-radar-oxford-10k/gt/radar_odometry.csv")
+    gt_se3s = gt_se3s[settings.K_RADAR_INDEX_OFFSET:]
+
+    # Pose estimates from full matches
+    full_matches_timestamps, full_matches_x_y_th = get_timestamps_and_x_y_th_from_csv(
+        params.input_path + "full_matches_poses.csv")
+    full_matches_se3s = get_raw_se3s_from_x_y_th(full_matches_x_y_th)
+
+    # Pose estimates from inliers only
+    cm_timestamps, cm_x_y_th = get_timestamps_and_x_y_th_from_csv(params.input_path + "cm_matches_poses.csv")
+    cm_se3s = get_raw_se3s_from_x_y_th(cm_x_y_th)
+
+    # Quick cropping hack *****
+    # cropped_size = 2000
+    # gt_se3s = gt_se3s[:cropped_size]
+    # full_matches_se3s = full_matches_se3s[:cropped_size]
+    # cm_se3s = cm_se3s[:cropped_size]
+    # **************************************************
+
+    relative_pose_index = settings.K_RADAR_INDEX_OFFSET + 1
+    relative_pose_timestamp = gt_timestamps[relative_pose_index]
+
+    # ensure timestamps are within a reasonable limit of each other (microseconds)
+    assert (full_matches_timestamps[0] - relative_pose_timestamp) < 500
+    assert (cm_timestamps[0] - relative_pose_timestamp) < 500
+
+    # ANOTHER QUICK CHECK:
+    ro_x, ro_y, ro_th = get_x_y_th_from_se3s(full_matches_se3s)
+    gt_x, gt_y, gt_th = get_x_y_th_from_se3s(gt_se3s)
+
+    plt.figure(figsize=(15, 10))
+    dim = params.num_samples
+    # plt.xlim(0, dim)
+    plt.grid()
+    plt.plot(ro_x, '.-', label="ro_x")
+    plt.plot(ro_y, '.-', label="ro_y")
+    plt.plot(ro_th, '.-', label="ro_th")
+    plt.plot(gt_x[:dim], '.-', label="gt_x")
+    plt.plot(gt_y[:dim], '.-', label="gt_y")
+    plt.plot(gt_th[:dim], '.-', label="gt_th")
+    plt.title("Pose estimates: RO vs ground-truth")
+    plt.xlabel("Time (s)")
+    plt.ylabel("units/s")
+    plt.legend()
+    plt.savefig("%s%s" % (output_path, "/odometry_comparison_check.png"))
+    plt.close()
+    # *****************************************************************
+
+    # *****************************************************************
+    # CORRECTION: making global poses from the relative poses
+    gt_global_se3s = [np.identity(4)]
+    for i in range(1, len(gt_se3s)):
+        gt_global_se3s.append(gt_global_se3s[i - 1] @ gt_se3s[i])
+    gt_global_SE3s = get_se3s_from_raw_se3s(gt_global_se3s)
+
+    fm_global_se3s = [np.identity(4)]
+    for i in range(1, len(full_matches_se3s)):
+        fm_global_se3s.append(fm_global_se3s[i - 1] @ full_matches_se3s[i])
+    full_matches_global_SE3s = get_se3s_from_raw_se3s(fm_global_se3s)
+
+    cm_global_se3s = [np.identity(4)]
+    for i in range(1, len(cm_se3s)):
+        cm_global_se3s.append(cm_global_se3s[i - 1] @ cm_se3s[i])
+    cm_global_SE3s = get_se3s_from_raw_se3s(cm_global_se3s)
+    # *****************************************************************
+
+    segment_lengths = [100, 200, 300, 400, 500, 600, 700, 800]
+    # segment_lengths = [10, 20]
+    # segment_lengths = [100, 200, 300, 400]
+
+    tm_gt_fullmatches = TrajectoryMetrics(gt_global_SE3s, full_matches_global_SE3s)
+    print_trajectory_metrics(tm_gt_fullmatches, segment_lengths, data_name="full match")
+
+    tm_gt_cm = TrajectoryMetrics(gt_global_SE3s, cm_global_SE3s)
+    print_trajectory_metrics(tm_gt_cm, segment_lengths, data_name="cm")
+
+    # Visualiser experimenting
+    from pyslam.visualizers import TrajectoryVisualizer
+    visualiser = TrajectoryVisualizer({"full_matches": tm_gt_fullmatches, "cm": tm_gt_cm})
+    visualiser.plot_cum_norm_err(outfile="/workspace/data/visualised_metrics_tmp/cumulative_norm_errors.pdf")
+    # visualiser.plot_norm_err(outfile="/workspace/data/visualised_metrics_tmp/norm_errors.pdf")
+    visualiser.plot_segment_errors(segs=segment_lengths,
+                                   outfile="/workspace/data/visualised_metrics_tmp/segment_errors.pdf")
+    visualiser.plot_topdown(which_plane='yx',  # this is a custom flip to conform to MRG convention, instead of xy
+                            outfile="/workspace/data/visualised_metrics_tmp/topdown.pdf")
+
+
+def print_trajectory_metrics(tm_gt_est, segment_lengths, data_name="this"):
+    print("\nTrajectory Metrics for", data_name, "set:")
+    # print("endpoint_error:", tm_gt_est.endpoint_error(segment_lengths))
+    # print("segment_errors:", tm_gt_est.segment_errors(segment_lengths))
+    # print("traj_errors:", tm_gt_est.traj_errors())
+    # print("rel_errors:", tm_gt_est.rel_errors())
+    # print("error_norms:", tm_gt_est.error_norms())
+    print("mean_err:", tm_gt_est.mean_err())
+    # print("cum_err:", tm_gt_est.cum_err())
+    print("rms_err:", tm_gt_est.rms_err())
+
+
 def main():
     parser = ArgumentParser(add_help=False)
     parser.add_argument('--input_path', type=str, default="",
@@ -225,11 +368,12 @@ def main():
 
     # You need to run this: ~/code/corelibs/build/tools-cpp/bin/MonolithicIndexBuilder
     # -i /Users/roberto/Desktop/ro_state.monolithic -o /Users/roberto/Desktop/ro_state.monolithic.index
-    radar_state_mono = IndexedMonolithic(params.input_path + "ro_state_91.monolithic")
+    radar_state_mono = IndexedMonolithic(params.input_path + "ro_state.monolithic")
     print("Number of indices in this radar odometry state monolithic:", len(radar_state_mono))
 
     circular_motion_estimation(params, radar_state_mono)
     plot_csv_things(params)
+    get_metrics(params)
 
 
 if __name__ == "__main__":
