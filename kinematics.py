@@ -17,7 +17,10 @@ def get_transform_by_translation_and_theta(translation_x, translation_y, theta):
 
 def get_transform_by_r_and_theta(rotation_radius, theta):
     phi = theta / 2  # this is because we're enforcing circular motion
-    rho = 2 * rotation_radius * np.sin(phi)
+    if rotation_radius == np.inf and theta == 0:
+        rho = 0
+    else:
+        rho = 2 * rotation_radius * np.sin(phi)
     rho_x = rho * np.cos(phi)  # forward motion
     rho_y = rho * np.sin(phi)  # lateral motion
     return get_transform_by_translation_and_theta(rho_x, rho_y, theta)
