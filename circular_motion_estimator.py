@@ -113,12 +113,12 @@ def circular_motion_estimation(params, radar_state_mono):
             middle_cme.append(circular_motion_estimates[idx])
             middle_cme_idxs.append(idx)
 
-            cm_poses.append(get_transform_by_r_and_theta(1/circular_motion_estimates[idx].curvature,
+            cm_poses.append(get_transform_by_r_and_theta(1 / circular_motion_estimates[idx].curvature,
                                                          circular_motion_estimates[idx].theta))
 
-        dx_value = statistics.median([motions[0, 3] for motions in cm_poses])
-        dy_value = statistics.median([motions[1, 3] for motions in cm_poses])
-        dth_value = statistics.median([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses])
+        # dx_value = statistics.median([motions[0, 3] for motions in cm_poses])
+        # dy_value = statistics.median([motions[1, 3] for motions in cm_poses])
+        # dth_value = statistics.median([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses])
         # poses_from_circular_motion.append([dx_value, dy_value, dth_value])
         #############################################################################
 
@@ -134,21 +134,13 @@ def circular_motion_estimation(params, radar_state_mono):
         #     "%s%s%i%s" % (figure_path, "/debugging_thetas", i, ".pdf"))
         # plt.close()
 
-        # TODO: change to curvature values...
         tmp_thetas = [cme.theta for cme in middle_cme]
         tmp_curvatures = [cme.curvature for cme in middle_cme]
-        # histogram_vals = np.array([tmp_thetas, tmp_curvatures])
-        # # tmp_max = np.amax(histogram_vals, axis=1)
-        # tmp_max_idxs = np.argwhere(histogram_vals == histogram_vals.max())
-        # tmp_pose = get_transform_by_r_and_theta(1 / middle_cme[tmp_max_idxs[0, 0]].radius,
-        #                                         middle_cme[tmp_max_idxs[0, 1]].theta)
+
         num_histogram_bins = 300
         H, xedges, yedges = np.histogram2d(tmp_thetas, tmp_curvatures, bins=num_histogram_bins)
-        # idx = list(H.flatten()).index(H.max())
-        # x, y = idx / H.shape[1], idx % H.shape[1]
 
         x, y = np.argwhere(H == H.max())[0]
-        # pdb.set_trace()
 
         tmp_pose = get_transform_by_r_and_theta(1 / np.average(yedges[y:y + 2]), np.average(xedges[x:x + 2]))
         print("Histogram pose:", tmp_pose)
@@ -158,17 +150,17 @@ def circular_motion_estimation(params, radar_state_mono):
         dth_value = np.arctan2(tmp_pose[1, 0], tmp_pose[0, 0])
         poses_from_circular_motion.append([dx_value, dy_value, dth_value])
 
-        plt.figure(figsize=(10, 10))
-        plt.hist2d([cme.theta for cme in middle_cme],
-                   [cme.curvature for cme in middle_cme],
-                   num_histogram_bins, density=False)
-        # plt.plot([1 / cme.radius for cme in middle_cme], '.')
-        plt.title("Theta vs curvature values")
-        plt.xlabel("Theta (rad)")
-        plt.ylabel("Curvature")
-        plt.grid()
-        plt.savefig("%s%s%i%s" % (figure_path, "/debugging_2d_histogram_", i, ".pdf"))
-        plt.close()
+        # plt.figure(figsize=(10, 10))
+        # plt.hist2d([cme.theta for cme in middle_cme],
+        #            [cme.curvature for cme in middle_cme],
+        #            num_histogram_bins, density=False)
+        # # plt.plot([1 / cme.radius for cme in middle_cme], '.')
+        # plt.title("Theta vs curvature values")
+        # plt.xlabel("Theta (rad)")
+        # plt.ylabel("Curvature")
+        # plt.grid()
+        # plt.savefig("%s%s%i%s" % (figure_path, "/debugging_2d_histogram_", i, ".pdf"))
+        # plt.close()
         #
         # plt.figure(figsize=(10, 10))
         # plt.hist([cme.theta for cme in circular_motion_estimates], 100, density=False, facecolor='tab:blue')
@@ -187,19 +179,7 @@ def circular_motion_estimation(params, radar_state_mono):
         # plt.close()
 
         # Motion estimate from running SVD on all the points
-        P1 = []
-        P2 = []
-        for match in matched_points:
-            x1 = match[0]
-            x2 = match[1]
-            y1 = match[2]
-            y2 = match[3]
-            P1.append([x1, y1])
-            P2.append([x2, y2])
-        P1 = np.transpose(P1)
-        P2 = np.transpose(P2)
-        v, theta_R = get_motion_estimate_from_svd(P1, P2, weights=np.ones(P1.shape[1]))
-        pose_from_svd = [v[1], v[0], -theta_R]  # this line applies the transform to get into the robot frame
+        pose_from_svd = get_motion_estimates_from_svd_on_full_matches(matched_points)
         poses_from_full_match_set.append(pose_from_svd)
         print("SVD motion estimate (x, y, th):", pose_from_svd)
 
@@ -209,6 +189,23 @@ def circular_motion_estimation(params, radar_state_mono):
     save_timestamps_and_x_y_th_to_csv(timestamps_from_ro_state, x_y_th=poses_from_circular_motion,
                                       pose_source="cm_matches",
                                       export_folder=params.input_path)
+
+
+def get_motion_estimates_from_svd_on_full_matches(matched_points):
+    P1 = []
+    P2 = []
+    for match in matched_points:
+        x1 = match[0]
+        x2 = match[1]
+        y1 = match[2]
+        y2 = match[3]
+        P1.append([x1, y1])
+        P2.append([x2, y2])
+    P1 = np.transpose(P1)
+    P2 = np.transpose(P2)
+    v, theta_R = get_motion_estimate_from_svd(P1, P2, weights=np.ones(P1.shape[1]))
+    pose_from_svd = [v[1], v[0], -theta_R]  # this line applies the transform to get into the robot frame
+    return pose_from_svd
 
 
 def plot_csv_things(params):
@@ -268,21 +265,8 @@ def main():
     print("Number of indices in this radar odometry state monolithic:", len(radar_state_mono))
 
     circular_motion_estimation(params, radar_state_mono)
-    plot_csv_things(params)
+    # plot_csv_things(params)
 
 
 if __name__ == "__main__":
     main()
-
-    # python - W error circular_motion_estimator.py
-    # --input_path "/workspace/data/landmark-distortion/ro_state_pb_developing/" - -num_samples 4
-    # try:
-    #     main()
-    # except:
-    #     type, value, tb = sys.exc_info()
-    #     traceback.print_exc()
-    #     last_frame = lambda tb=tb: last_frame(tb.tb_next) if tb.tb_next else tb
-    #     frame = last_frame().tb_frame
-    #     ns = dict(frame.f_globals)
-    #     ns.update(frame.f_locals)
-    #     code.interact(local=ns)
