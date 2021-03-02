@@ -83,55 +83,8 @@ def circular_motion_estimation(params, radar_state_mono):
 
         circular_motion_estimates = get_circular_motion_estimates_from_matches(matched_points)
 
-        plotting_off = True
-        if plotting_off is False:
-            # A staging area for some plotting
-            plt.figure(figsize=(10, 10))
-            theta_values = [estimates.theta for estimates in circular_motion_estimates]
-            curvature_values = [estimates.curvature for estimates in circular_motion_estimates]
-            # norm_thetas = [float(i) / max(theta_values) for i in theta_values]
-            # norm_curvatures = [float(i) / max(curvature_values) for i in curvature_values]
-            # plt.plot(norm_curvatures, norm_thetas, '.')
-            plt.plot(curvature_values, theta_values, '.')
-            plt.title("Theta vs curvature")
-            plt.grid()
-            plt.xlabel("Curvature")
-            plt.ylabel("Theta")
-            # plt.ylim(-1, 1)
-            # plt.xlim(-1, 1)
-            plt.savefig("%s%s%i%s" % (figure_path, "/debugging_curvature_theta_", i, ".pdf"))
-            plt.close()
-
-            plt.figure(figsize=(10, 10))
-            plt.plot(np.sort(curvature_values), 'r.', label="curvature")
-            plt.plot(np.sort(theta_values), 'b.', label="theta")
-            plt.title("Sorted curvature and theta values")
-            plt.grid()
-            plt.ylim(-1, 1)
-            # plt.xlim(-0.0001, 0.0001)
-            plt.legend()
-            plt.savefig("%s%s%i%s" % (figure_path, "/debugging_", i, ".pdf"))
-            plt.close()
-
-            # Plot some Gaussians
-            import scipy.stats as stats
-            import math
-            plt.figure(figsize=(10, 10))
-            mu = np.mean(theta_values)
-            variance = np.var(theta_values)
-            sigma = math.sqrt(variance)
-            x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 100)
-            # plt.plot(x, stats.norm.pdf(x, mu, sigma), label="theta")
-
-            mu = np.mean(curvature_values)
-            variance = np.var(curvature_values)
-            sigma = math.sqrt(variance)
-            x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 100)
-            plt.plot(x, stats.norm.pdf(x, mu, sigma), label="curvature")
-            plt.grid()
-            plt.legend()
-            plt.savefig("%s%s%i%s" % (figure_path, "/gaussian_", i, ".pdf"))
-            plt.close()
+        # Useful debugging plotting to see what's going on (while keeping this function neat and tidy)
+        debugging_plotting(figure_path, index=i, circular_motion_estimates=circular_motion_estimates)
 
         # sort circular motion estimates by theta value
         circular_motion_estimates.sort(key=operator.attrgetter('theta'))
@@ -140,6 +93,7 @@ def circular_motion_estimation(params, radar_state_mono):
         middle_cme_idxs = []
         cm_poses = []
 
+        # Simple way: use the second and third quarter (middle bit) as a means of discarding the outliers
         for idx in range(len(circular_motion_estimates) // 4, 3 * len(circular_motion_estimates) // 4):
             middle_cme.append(circular_motion_estimates[idx])
             middle_cme_idxs.append(idx)
@@ -245,6 +199,56 @@ def plot_csv_things(params):
     plt.ylabel("units/sample")
     plt.legend()
     plt.savefig("%s%s" % (output_path, "/odometry_comparison.pdf"))
+    plt.close()
+
+
+def debugging_plotting(figure_path, index, circular_motion_estimates):
+    # A staging area for some plotting
+    plt.figure(figsize=(10, 10))
+    theta_values = [estimates.theta for estimates in circular_motion_estimates]
+    curvature_values = [estimates.curvature for estimates in circular_motion_estimates]
+    # norm_thetas = [float(i) / max(theta_values) for i in theta_values]
+    # norm_curvatures = [float(i) / max(curvature_values) for i in curvature_values]
+    # plt.plot(norm_curvatures, norm_thetas, '.')
+    plt.plot(curvature_values, theta_values, '.')
+    plt.title("Theta vs curvature")
+    plt.grid()
+    plt.xlabel("Curvature")
+    plt.ylabel("Theta")
+    # plt.ylim(-1, 1)
+    # plt.xlim(-1, 1)
+    plt.savefig("%s%s%i%s" % (figure_path, "/debugging_curvature_theta_", index, ".pdf"))
+    plt.close()
+
+    plt.figure(figsize=(10, 10))
+    plt.plot(np.sort(curvature_values), 'r.', label="curvature")
+    plt.plot(np.sort(theta_values), 'b.', label="theta")
+    plt.title("Sorted curvature and theta values")
+    plt.grid()
+    plt.ylim(-1, 1)
+    # plt.xlim(-0.0001, 0.0001)
+    plt.legend()
+    plt.savefig("%s%s%i%s" % (figure_path, "/debugging_", index, ".pdf"))
+    plt.close()
+
+    # Plot some Gaussians
+    import scipy.stats as stats
+    import math
+    plt.figure(figsize=(10, 10))
+    mu = np.mean(theta_values)
+    variance = np.var(theta_values)
+    sigma = math.sqrt(variance)
+    x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 100)
+    # plt.plot(x, stats.norm.pdf(x, mu, sigma), label="theta")
+
+    mu = np.mean(curvature_values)
+    variance = np.var(curvature_values)
+    sigma = math.sqrt(variance)
+    x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 100)
+    plt.plot(x, stats.norm.pdf(x, mu, sigma), label="curvature")
+    plt.grid()
+    plt.legend()
+    plt.savefig("%s%s%i%s" % (figure_path, "/gaussian_", index, ".pdf"))
     plt.close()
 
 
@@ -372,8 +376,8 @@ def main():
     print("Number of indices in this radar odometry state monolithic:", len(radar_state_mono))
 
     circular_motion_estimation(params, radar_state_mono)
-    plot_csv_things(params)
-    get_metrics(params)
+    # plot_csv_things(params)
+    # get_metrics(params)
 
 
 if __name__ == "__main__":
