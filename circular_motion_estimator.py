@@ -41,7 +41,7 @@ class CircularMotionEstimate:
 
 
 def circular_motion_estimation(params, radar_state_mono):
-    figure_path = params.input_path + "figs_circular_motion_estimation/"
+    figure_path = params.output_path + "figs_circular_motion_estimation/"
     output_path = Path(figure_path)
     if output_path.exists() and output_path.is_dir():
         shutil.rmtree(output_path)
@@ -87,7 +87,7 @@ def circular_motion_estimation(params, radar_state_mono):
         # debugging_plotting(figure_path, index=i, circular_motion_estimates=circular_motion_estimates)
 
         pose_from_circular_motion = get_median_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates)
-        # poses_from_circular_motion.append([dx_value, dy_value, dth_value])
+        # pose_from_circular_motion = get_experimental_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates)
         poses_from_circular_motion.append(pose_from_circular_motion)
         print("Pose from circular motion:", pose_from_circular_motion)
 
@@ -98,10 +98,35 @@ def circular_motion_estimation(params, radar_state_mono):
 
     save_timestamps_and_x_y_th_to_csv(timestamps_from_ro_state, x_y_th=poses_from_full_match_set,
                                       pose_source="full_matches",
-                                      export_folder=params.input_path)
+                                      export_folder=params.output_path)
     save_timestamps_and_x_y_th_to_csv(timestamps_from_ro_state, x_y_th=poses_from_circular_motion,
                                       pose_source="cm_matches",
-                                      export_folder=params.input_path)
+                                      export_folder=params.output_path)
+
+
+def get_experimental_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates):
+    # sort circular motion estimates by theta value
+    circular_motion_estimates.sort(key=operator.attrgetter('theta'))
+
+    middle_cme = []
+    middle_cme_idxs = []
+    cm_poses = []
+
+    # Simple way: use the second and third quarter (middle bit) as a means of discarding the outliers
+    for idx in range(len(circular_motion_estimates) // 4, 3 * len(circular_motion_estimates) // 4):
+        middle_cme.append(circular_motion_estimates[idx])
+        middle_cme_idxs.append(idx)
+        radius = np.inf
+        if circular_motion_estimates[idx].curvature != 0:
+            radius = 1 / circular_motion_estimates[idx].curvature
+        cm_poses.append(get_transform_by_r_and_theta(radius,
+                                                     circular_motion_estimates[idx].theta))
+
+    dx_value = statistics.mean([motions[0, 3] for motions in cm_poses])
+    dy_value = statistics.mean([motions[1, 3] for motions in cm_poses])
+    dth_value = statistics.mean([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses])
+
+    return [dx_value, dy_value, dth_value]
 
 
 def get_median_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates):
@@ -126,11 +151,11 @@ def get_median_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimate
     dy_value = statistics.median([motions[1, 3] for motions in cm_poses])
     dth_value = statistics.median([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses])
 
-    print("Indices of medians for dx, dy, dtheta:")
-    print(np.argsort([motions[0, 3] for motions in cm_poses])[len([motions[0, 3] for motions in cm_poses]) // 2])
-    print(np.argsort([motions[1, 3] for motions in cm_poses])[len([motions[1, 3] for motions in cm_poses]) // 2])
-    print(np.argsort([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses])[
-              len([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses]) // 2])
+    # print("Indices of medians for dx, dy, dtheta:")
+    # print(np.argsort([motions[0, 3] for motions in cm_poses])[len([motions[0, 3] for motions in cm_poses]) // 2])
+    # print(np.argsort([motions[1, 3] for motions in cm_poses])[len([motions[1, 3] for motions in cm_poses]) // 2])
+    # print(np.argsort([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses])[
+    #           len([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses]) // 2])
     return [dx_value, dy_value, dth_value]
 
 
@@ -176,7 +201,7 @@ def get_motion_estimates_from_svd_on_full_matches(matched_points):
 def plot_csv_things(params):
     print("Plotting pose estimate data...")
 
-    figure_path = params.input_path + "figs_circular_motion_estimation/"
+    figure_path = params.output_path + "figs_circular_motion_estimation/"
     output_path = Path(figure_path)
     # if output_path.exists() and output_path.is_dir():
     #     shutil.rmtree(output_path)
@@ -184,14 +209,14 @@ def plot_csv_things(params):
 
     # Pose estimates from SVD on the full set of matches
     full_match_timestamps, full_match_x_y_th = get_timestamps_and_x_y_th_from_csv(
-        params.input_path + "full_matches_poses.csv")
+        params.output_path + "full_matches_poses.csv")
     svd_x = [float(item[0]) for item in full_match_x_y_th]
     svd_y = [float(item[1]) for item in full_match_x_y_th]
     svd_th = [float(item[2]) for item in full_match_x_y_th]
 
     # Pose estimates from inliers only
     cm_timestamps, cm_x_y_th = get_timestamps_and_x_y_th_from_csv(
-        params.input_path + "cm_matches_poses.csv")
+        params.output_path + "cm_matches_poses.csv")
     cm_x = [float(item[0]) for item in cm_x_y_th]
     cm_y = [float(item[1]) for item in cm_x_y_th]
     cm_th = [float(item[2]) for item in cm_x_y_th]
@@ -266,7 +291,7 @@ def debugging_plotting(figure_path, index, circular_motion_estimates):
 
 def get_metrics(params):
     # Some code to run KITTI metrics over poses, based on pyslam TrajectoryMetrics
-    figure_path = params.input_path + "figs_circular_motion_estimation/error_metrics/"
+    figure_path = params.output_path + "figs_circular_motion_estimation/error_metrics/"
     output_path = Path(figure_path)
     if output_path.exists() and output_path.is_dir():
         shutil.rmtree(output_path)
@@ -278,11 +303,11 @@ def get_metrics(params):
 
     # Pose estimates from full matches
     full_matches_timestamps, full_matches_x_y_th = get_timestamps_and_x_y_th_from_csv(
-        params.input_path + "full_matches_poses.csv")
+        params.output_path + "full_matches_poses.csv")
     full_matches_se3s = get_raw_se3s_from_x_y_th(full_matches_x_y_th)
 
-    # Pose estimates from inliers only
-    cm_timestamps, cm_x_y_th = get_timestamps_and_x_y_th_from_csv(params.input_path + "cm_matches_poses.csv")
+    # Pose estimates from circular motion only
+    cm_timestamps, cm_x_y_th = get_timestamps_and_x_y_th_from_csv(params.output_path + "cm_matches_poses.csv")
     cm_se3s = get_raw_se3s_from_x_y_th(cm_x_y_th)
 
     # Quick cropping hack *****
@@ -351,13 +376,18 @@ def get_metrics(params):
 
     # Visualiser experimenting
     from pyslam.visualizers import TrajectoryVisualizer
+    output_path_for_metrics = Path(params.output_path + "visualised_metrics")
+    if output_path_for_metrics.exists() and output_path_for_metrics.is_dir():
+        shutil.rmtree(output_path_for_metrics)
+    output_path_for_metrics.mkdir(parents=True)
+
     visualiser = TrajectoryVisualizer({"full_matches": tm_gt_fullmatches, "cm": tm_gt_cm})
-    visualiser.plot_cum_norm_err(outfile="/workspace/data/visualised_metrics_tmp/cumulative_norm_errors.pdf")
+    visualiser.plot_cum_norm_err(outfile="%s%s" % (output_path_for_metrics, "/cumulative_norm_errors.pdf"))
     # visualiser.plot_norm_err(outfile="/workspace/data/visualised_metrics_tmp/norm_errors.pdf")
     visualiser.plot_segment_errors(segs=segment_lengths,
-                                   outfile="/workspace/data/visualised_metrics_tmp/segment_errors.pdf")
+                                   outfile="%s%s" % (output_path_for_metrics, "/segment_errors.pdf"))
     visualiser.plot_topdown(which_plane='yx',  # this is a custom flip to conform to MRG convention, instead of xy
-                            outfile="/workspace/data/visualised_metrics_tmp/topdown.pdf")
+                            outfile="%s%s" % (output_path_for_metrics, "/topdown.pdf"))
 
 
 def print_trajectory_metrics(tm_gt_est, segment_lengths, data_name="this"):
@@ -376,20 +406,26 @@ def main():
     parser = ArgumentParser(add_help=False)
     parser.add_argument('--input_path', type=str, default="",
                         help='Path to folder containing required inputs')
+    parser.add_argument('--output_path', type=str, default="",
+                        help='Path to folder where outputs will be saved')
     parser.add_argument('--num_samples', type=int, default=settings.TOTAL_SAMPLES,
                         help='Number of samples to process')
     params = parser.parse_args()
 
     print("Running script...")
+    # python circular_motion_estimator.py
+    # --input_path "/workspace/data/landmark-distortion/ro_state_pb_developing/ro_state_files/"
+    # --output_path "/workspace/data/landmark-distortion/ro_state_pb_developing/circular_motion_dev/"
+    # --num_samples 2000
 
     # You need to run this: ~/code/corelibs/build/tools-cpp/bin/MonolithicIndexBuilder
     # -i /Users/roberto/Desktop/ro_state.monolithic -o /Users/roberto/Desktop/ro_state.monolithic.index
-    radar_state_mono = IndexedMonolithic(params.input_path + "ro_state_91.monolithic")
+    radar_state_mono = IndexedMonolithic(params.input_path + "ro_state.monolithic")
     print("Number of indices in this radar odometry state monolithic:", len(radar_state_mono))
 
     circular_motion_estimation(params, radar_state_mono)
-    # plot_csv_things(params)
-    # get_metrics(params)
+    plot_csv_things(params)
+    get_metrics(params)
 
 
 if __name__ == "__main__":
