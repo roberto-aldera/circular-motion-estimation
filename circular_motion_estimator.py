@@ -84,30 +84,12 @@ def circular_motion_estimation(params, radar_state_mono):
         circular_motion_estimates = get_circular_motion_estimates_from_matches(matched_points)
 
         # Useful debugging plotting to see what's going on (while keeping this function neat and tidy)
-        debugging_plotting(figure_path, index=i, circular_motion_estimates=circular_motion_estimates)
+        # debugging_plotting(figure_path, index=i, circular_motion_estimates=circular_motion_estimates)
 
-        # sort circular motion estimates by theta value
-        circular_motion_estimates.sort(key=operator.attrgetter('theta'))
-
-        middle_cme = []
-        middle_cme_idxs = []
-        cm_poses = []
-
-        # Simple way: use the second and third quarter (middle bit) as a means of discarding the outliers
-        for idx in range(len(circular_motion_estimates) // 4, 3 * len(circular_motion_estimates) // 4):
-            middle_cme.append(circular_motion_estimates[idx])
-            middle_cme_idxs.append(idx)
-            radius = np.inf
-            if circular_motion_estimates[idx].curvature != 0:
-                radius = 1 / circular_motion_estimates[idx].curvature
-            cm_poses.append(get_transform_by_r_and_theta(radius,
-                                                         circular_motion_estimates[idx].theta))
-
-        dx_value = statistics.median([motions[0, 3] for motions in cm_poses])
-        dy_value = statistics.median([motions[1, 3] for motions in cm_poses])
-        dth_value = statistics.median([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses])
-        poses_from_circular_motion.append([dx_value, dy_value, dth_value])
-        print("Pose from circular motion (median values):", [dx_value, dy_value, dth_value])
+        pose_from_circular_motion = get_median_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates)
+        # poses_from_circular_motion.append([dx_value, dy_value, dth_value])
+        poses_from_circular_motion.append(pose_from_circular_motion)
+        print("Pose from circular motion:", pose_from_circular_motion)
 
         # Motion estimate from running SVD on all the points
         pose_from_svd = get_motion_estimates_from_svd_on_full_matches(matched_points)
@@ -120,6 +102,36 @@ def circular_motion_estimation(params, radar_state_mono):
     save_timestamps_and_x_y_th_to_csv(timestamps_from_ro_state, x_y_th=poses_from_circular_motion,
                                       pose_source="cm_matches",
                                       export_folder=params.input_path)
+
+
+def get_median_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates):
+    # sort circular motion estimates by theta value
+    circular_motion_estimates.sort(key=operator.attrgetter('theta'))
+
+    middle_cme = []
+    middle_cme_idxs = []
+    cm_poses = []
+
+    # Simple way: use the second and third quarter (middle bit) as a means of discarding the outliers
+    for idx in range(len(circular_motion_estimates) // 4, 3 * len(circular_motion_estimates) // 4):
+        middle_cme.append(circular_motion_estimates[idx])
+        middle_cme_idxs.append(idx)
+        radius = np.inf
+        if circular_motion_estimates[idx].curvature != 0:
+            radius = 1 / circular_motion_estimates[idx].curvature
+        cm_poses.append(get_transform_by_r_and_theta(radius,
+                                                     circular_motion_estimates[idx].theta))
+
+    dx_value = statistics.median([motions[0, 3] for motions in cm_poses])
+    dy_value = statistics.median([motions[1, 3] for motions in cm_poses])
+    dth_value = statistics.median([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses])
+
+    print("Indices of medians for dx, dy, dtheta:")
+    print(np.argsort([motions[0, 3] for motions in cm_poses])[len([motions[0, 3] for motions in cm_poses]) // 2])
+    print(np.argsort([motions[1, 3] for motions in cm_poses])[len([motions[1, 3] for motions in cm_poses]) // 2])
+    print(np.argsort([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses])[
+              len([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses]) // 2])
+    return [dx_value, dy_value, dth_value]
 
 
 def get_circular_motion_estimates_from_matches(matched_points):
@@ -372,7 +384,7 @@ def main():
 
     # You need to run this: ~/code/corelibs/build/tools-cpp/bin/MonolithicIndexBuilder
     # -i /Users/roberto/Desktop/ro_state.monolithic -o /Users/roberto/Desktop/ro_state.monolithic.index
-    radar_state_mono = IndexedMonolithic(params.input_path + "ro_state.monolithic")
+    radar_state_mono = IndexedMonolithic(params.input_path + "ro_state_91.monolithic")
     print("Number of indices in this radar odometry state monolithic:", len(radar_state_mono))
 
     circular_motion_estimation(params, radar_state_mono)
