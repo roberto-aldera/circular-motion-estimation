@@ -14,6 +14,12 @@ AUX1_COLOUR = "tab:red"
 # Offset
 K_RADAR_INDEX_OFFSET = 0
 
+# Aux names
+AUX0_NAME = "ransac-inliers-svd"
+AUX1_NAME = "cm-iqr-medians"
+AUX2_NAME = "cm-iqr-means"
+AUX3_NAME = "cm-sd-means"
+
 # General dataset parameters
 TOTAL_SAMPLES = 1
 RADAR_IMAGE_DIMENSION = 3600

@@ -28,21 +28,32 @@ def get_metrics(params):
         params.path + "full_matches_poses.csv")
     full_matches_se3s = get_raw_se3s_from_x_y_th(full_matches_x_y_th)
 
+    # Aux 1 - using the ransac inliers only in the SVD estimate - cropping from 6900 to just the first 2000 frames
+    aux0_timestamps, aux0_x_y_th = get_timestamps_and_x_y_th_from_csv(params.path + "6900_ransac_inliers_svd_poses.csv")
+    aux0_timestamps, aux0_x_y_th = aux0_timestamps[:2000], aux0_x_y_th[:2000]
+    aux0_se3s = get_raw_se3s_from_x_y_th(aux0_x_y_th)
+
     # Aux 1 - using the median for dx, dy, dth (between the first and third quartile of sorted theta values)
-    aux1_timestamps, aux1_x_y_th = get_timestamps_and_x_y_th_from_csv(params.path + "2000_medians_poses.csv")
+    aux1_timestamps, aux1_x_y_th = get_timestamps_and_x_y_th_from_csv(params.path + "2000_medians_iqr_poses.csv")
     aux1_se3s = get_raw_se3s_from_x_y_th(aux1_x_y_th)
 
     # Aux 2 - using the mean for dx, dy, dth (between the first and third quartile of sorted theta values)
-    aux2_timestamps, aux2_x_y_th = get_timestamps_and_x_y_th_from_csv(params.path + "2000_means_poses.csv")
+    aux2_timestamps, aux2_x_y_th = get_timestamps_and_x_y_th_from_csv(params.path + "2000_means_iqr_poses.csv")
     aux2_se3s = get_raw_se3s_from_x_y_th(aux2_x_y_th)
+
+    # Aux 3 - using the mean for dx, dy, dth (within 1 sd of the mean of all thetas)
+    aux3_timestamps, aux3_x_y_th = get_timestamps_and_x_y_th_from_csv(params.path + "2000_means_sd_poses.csv")
+    aux3_se3s = get_raw_se3s_from_x_y_th(aux3_x_y_th)
 
     relative_pose_index = settings.K_RADAR_INDEX_OFFSET + 1
     relative_pose_timestamp = gt_timestamps[relative_pose_index]
 
     # ensure timestamps are within a reasonable limit of each other (microseconds)
     assert (full_matches_timestamps[0] - relative_pose_timestamp) < 500
+    assert (aux0_timestamps[0] - relative_pose_timestamp) < 500
     assert (aux1_timestamps[0] - relative_pose_timestamp) < 500
     assert (aux2_timestamps[0] - relative_pose_timestamp) < 500
+    assert (aux3_timestamps[0] - relative_pose_timestamp) < 500
 
     # making global poses from the relative poses
     gt_global_se3s = [np.identity(4)]
@@ -55,6 +66,11 @@ def get_metrics(params):
         fm_global_se3s.append(fm_global_se3s[i - 1] @ full_matches_se3s[i])
     full_matches_global_SE3s = get_se3s_from_raw_se3s(fm_global_se3s)
 
+    aux0_global_se3s = [np.identity(4)]
+    for i in range(1, len(aux0_se3s)):
+        aux0_global_se3s.append(aux0_global_se3s[i - 1] @ aux0_se3s[i])
+    aux0_global_SE3s = get_se3s_from_raw_se3s(aux0_global_se3s)
+
     aux1_global_se3s = [np.identity(4)]
     for i in range(1, len(aux1_se3s)):
         aux1_global_se3s.append(aux1_global_se3s[i - 1] @ aux1_se3s[i])
@@ -65,6 +81,11 @@ def get_metrics(params):
         aux2_global_se3s.append(aux2_global_se3s[i - 1] @ aux2_se3s[i])
     aux2_global_SE3s = get_se3s_from_raw_se3s(aux2_global_se3s)
 
+    aux3_global_se3s = [np.identity(4)]
+    for i in range(1, len(aux3_se3s)):
+        aux3_global_se3s.append(aux3_global_se3s[i - 1] @ aux3_se3s[i])
+    aux3_global_SE3s = get_se3s_from_raw_se3s(aux3_global_se3s)
+
     segment_lengths = [100, 200, 300, 400, 500, 600, 700, 800]
     # segment_lengths = [10, 20]
     # segment_lengths = [100, 200, 300, 400]
@@ -72,11 +93,17 @@ def get_metrics(params):
     tm_gt_fullmatches = TrajectoryMetrics(gt_global_SE3s, full_matches_global_SE3s)
     print_trajectory_metrics(tm_gt_fullmatches, segment_lengths, data_name="full match")
 
+    tm_gt_aux0 = TrajectoryMetrics(gt_global_SE3s, aux0_global_SE3s)
+    print_trajectory_metrics(tm_gt_aux0, segment_lengths, data_name=settings.AUX0_NAME)
+
     tm_gt_aux1 = TrajectoryMetrics(gt_global_SE3s, aux1_global_SE3s)
-    print_trajectory_metrics(tm_gt_aux1, segment_lengths, data_name="aux1")
+    print_trajectory_metrics(tm_gt_aux1, segment_lengths, data_name=settings.AUX1_NAME)
 
     tm_gt_aux2 = TrajectoryMetrics(gt_global_SE3s, aux2_global_SE3s)
-    print_trajectory_metrics(tm_gt_aux2, segment_lengths, data_name="aux2")
+    print_trajectory_metrics(tm_gt_aux2, segment_lengths, data_name=settings.AUX2_NAME)
+
+    tm_gt_aux3 = TrajectoryMetrics(gt_global_SE3s, aux3_global_SE3s)
+    print_trajectory_metrics(tm_gt_aux3, segment_lengths, data_name=settings.AUX3_NAME)
 
     # Visualiser experimenting
     from pyslam.visualizers import TrajectoryVisualizer
@@ -85,7 +112,9 @@ def get_metrics(params):
         shutil.rmtree(output_path_for_metrics)
     output_path_for_metrics.mkdir(parents=True)
 
-    visualiser = TrajectoryVisualizer({"full_matches": tm_gt_fullmatches, "aux1": tm_gt_aux1, "aux2": tm_gt_aux2})
+    visualiser = TrajectoryVisualizer(
+        {"full_matches": tm_gt_fullmatches, settings.AUX0_NAME: tm_gt_aux0, settings.AUX1_NAME: tm_gt_aux1,
+         settings.AUX2_NAME: tm_gt_aux2, settings.AUX3_NAME: tm_gt_aux3})
     visualiser.plot_cum_norm_err(outfile="%s%s" % (output_path_for_metrics, "/cumulative_norm_errors.pdf"))
     visualiser.plot_segment_errors(segs=segment_lengths,
                                    outfile="%s%s" % (output_path_for_metrics, "/segment_errors.pdf"))
