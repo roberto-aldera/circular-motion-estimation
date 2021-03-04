@@ -65,8 +65,8 @@ def circular_motion_estimation(params, radar_state_mono):
         selected_matches = get_matrix_from_pb(ro_state.selected_matches).astype(int)
         selected_matches = np.reshape(selected_matches, (selected_matches.shape[1], -1))
 
-        print("Size of primary landmarks:", len(primary_landmarks))
-        print("Size of secondary landmarks:", len(secondary_landmarks))
+        # print("Size of primary landmarks:", len(primary_landmarks))
+        # print("Size of secondary landmarks:", len(secondary_landmarks))
 
         # Selected matches are those that were used by RO, best matches are for development purposes here in python land
         matches_to_plot = selected_matches.astype(int)
@@ -86,8 +86,21 @@ def circular_motion_estimation(params, radar_state_mono):
         # Useful debugging plotting to see what's going on (while keeping this function neat and tidy)
         # debugging_plotting(figure_path, index=i, circular_motion_estimates=circular_motion_estimates)
 
-        pose_from_circular_motion = get_median_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates)
-        # pose_from_circular_motion = get_experimental_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates)
+        ############################################################################################
+        # A staging area for some plotting
+        # plt.figure(figsize=(10, 10))
+        # theta_values = [estimates.theta for estimates in circular_motion_estimates]
+        # plt.plot(theta_values, '.')
+        # plt.title("Thetas")
+        # plt.grid()
+        # # plt.ylim(-1, 1)
+        # # plt.xlim(-1, 1)
+        # plt.savefig("%s%s%i%s" % (figure_path, "/outlier_detection_", i, ".pdf"))
+        # plt.close()
+        ############################################################################################
+
+        # pose_from_circular_motion = get_median_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates)
+        pose_from_circular_motion = get_experimental_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates)
         poses_from_circular_motion.append(pose_from_circular_motion)
         print("Pose from circular motion:", pose_from_circular_motion)
 
@@ -105,6 +118,57 @@ def circular_motion_estimation(params, radar_state_mono):
 
 
 def get_experimental_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates):
+    import scipy
+    from scipy.stats import sem
+    cm_poses = []
+    chosen_indices = []
+    thetas = [cme.theta for cme in circular_motion_estimates]
+    # mean_theta = np.mean(thetas)
+    sd_theta = np.std(thetas)
+    sem_theta = scipy.stats.sem(thetas)  # standard error of the mean
+    mad_theta = scipy.stats.median_abs_deviation(thetas)  # median absolute deviation
+
+    lower_theta_bound = np.mean(thetas) - sd_theta
+    upper_theta_bound = np.mean(thetas) + sd_theta
+    # lower_theta_bound = np.median(thetas) - mad_theta
+    # upper_theta_bound = np.median(thetas) + mad_theta
+    for i in range(len(circular_motion_estimates)):
+        if (circular_motion_estimates[i].theta >= lower_theta_bound) and (
+                circular_motion_estimates[i].theta <= upper_theta_bound):
+            chosen_indices.append(i)
+    print("Using", len(chosen_indices), "out of", len(circular_motion_estimates), "circular motion estimates.")
+
+    # A staging area for some plotting
+    # plt.figure(figsize=(10, 10))
+    theta_values = [circular_motion_estimates[i].theta for i in chosen_indices]
+    curvature_values = [circular_motion_estimates[i].curvature for i in chosen_indices]
+    # plt.plot(theta_values, '.', label="theta")
+    # plt.plot(curvature_values, '.', label="curvature")
+    # plt.title("Thetas")
+    # plt.grid()
+    # plt.legend()
+    # # plt.ylim(-1, 1)
+    # # plt.xlim(-1, 1)
+    # plt.savefig("%s" % (
+    #     "/workspace/data/landmark-distortion/ro_state_pb_developing/"
+    #     "circular_motion_dev/figs_circular_motion_estimation/outlier_detection.pdf"))
+    # plt.close()
+
+    for idx in chosen_indices:
+        radius = np.inf
+        if circular_motion_estimates[idx].curvature != 0:
+            radius = 1 / circular_motion_estimates[idx].curvature
+        cm_poses.append(get_transform_by_r_and_theta(radius,
+                                                     circular_motion_estimates[idx].theta))
+    # pdb.set_trace()
+    dx_value = statistics.mean([motions[0, 3] for motions in cm_poses])
+    dy_value = statistics.mean([motions[1, 3] for motions in cm_poses])
+    dth_value = statistics.mean([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses])
+
+    return [dx_value, dy_value, dth_value]
+
+
+def get_mean_dx_dy_dth_from_circular_motion_estimates_iqr(circular_motion_estimates):
     # sort circular motion estimates by theta value
     circular_motion_estimates.sort(key=operator.attrgetter('theta'))
 
@@ -121,6 +185,7 @@ def get_experimental_dx_dy_dth_from_circular_motion_estimates(circular_motion_es
             radius = 1 / circular_motion_estimates[idx].curvature
         cm_poses.append(get_transform_by_r_and_theta(radius,
                                                      circular_motion_estimates[idx].theta))
+    print("Using", len(cm_poses), "out of", len(circular_motion_estimates), "circular motion estimates.")
 
     dx_value = statistics.mean([motions[0, 3] for motions in cm_poses])
     dy_value = statistics.mean([motions[1, 3] for motions in cm_poses])
@@ -129,7 +194,7 @@ def get_experimental_dx_dy_dth_from_circular_motion_estimates(circular_motion_es
     return [dx_value, dy_value, dth_value]
 
 
-def get_median_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates):
+def get_median_dx_dy_dth_from_circular_motion_estimates_iqr(circular_motion_estimates):
     # sort circular motion estimates by theta value
     circular_motion_estimates.sort(key=operator.attrgetter('theta'))
 
@@ -425,7 +490,7 @@ def main():
 
     circular_motion_estimation(params, radar_state_mono)
     plot_csv_things(params)
-    get_metrics(params)
+    # get_metrics(params)
 
 
 if __name__ == "__main__":
