@@ -1,7 +1,7 @@
 # Script for getting motion estimate by running ransac on the matches to reject outliers
 # Runs SVD over inliers from the best RANSAC model compared to over all matches
 
-# python ransac_poses.py --input_path "/workspace/data/landmark-distortion/ro_state_pb_developing/" --num_samples 80
+# python ransac_poses.py --input_path /workspace/data/landmark-distortion/ro_state_pb_developing/ro_state_files/ --output_path /workspace/data/landmark-distortion/ro_state_pb_developing/ransac_without_motion_model/ --num_samples 80
 
 
 import numpy as np
@@ -30,7 +30,7 @@ from mrg.pointclouds.classes import PointCloud
 
 
 def ransac_motion_estimation(params, radar_state_mono):
-    figure_path = params.input_path + "figs_ransac_motion_estimation/"
+    figure_path = params.output_path + "figs_ransac_motion_estimation/"
     output_path = Path(figure_path)
     if output_path.exists() and output_path.is_dir():
         shutil.rmtree(output_path)
@@ -95,6 +95,7 @@ def ransac_motion_estimation(params, radar_state_mono):
         print("SVD motion estimate (x, y, th):", pose_from_svd)
 
         # Running SVD on all inliers from the best RANSAC model
+        # I think this was 100 iterations, it's slower but significantly improves accuracy
         pose_estimates = get_pose_estimates_with_ransac(P1, P2, iterations=50)
         champion_inliers = get_all_inliers_from_best_ransac_motion_estimate(P1, P2, pose_estimates,
                                                                             inlier_threshold=0.01)
@@ -114,16 +115,16 @@ def ransac_motion_estimation(params, radar_state_mono):
 
     save_timestamps_and_x_y_th_to_csv(timestamps_from_ro_state, x_y_th=poses_from_full_match_set,
                                       pose_source="full_matches",
-                                      export_folder=params.input_path)
+                                      export_folder=params.output_path)
     save_timestamps_and_x_y_th_to_csv(timestamps_from_ro_state, x_y_th=poses_from_inliers,
                                       pose_source="inliers",
-                                      export_folder=params.input_path)
+                                      export_folder=params.output_path)
 
 
 def plot_all_sources(params):
     print("Plotting pose estimate data...")
 
-    figure_path = params.input_path + "figs_ransac_motion_estimation/"
+    figure_path = params.output_path + "figs_ransac_motion_estimation/"
     output_path = Path(figure_path)
     if output_path.exists() and output_path.is_dir():
         shutil.rmtree(output_path)
@@ -134,7 +135,7 @@ def plot_all_sources(params):
 
     # Pose estimates from SVD on the full set of matches
     full_match_timestamps, full_match_x_y_th = get_timestamps_and_x_y_th_from_csv(
-        params.input_path + "full_matches_poses.csv")
+        params.output_path + "full_matches_poses.csv")
     full_match_dx, full_match_dy, full_match_dth = get_x_y_th_velocities_from_x_y_th(full_match_x_y_th,
                                                                                      full_match_timestamps)
     start_time_offset = full_match_timestamps[0]
@@ -142,7 +143,7 @@ def plot_all_sources(params):
 
     # Pose estimates from inliers only
     inlier_timestamps, inlier_x_y_th = get_timestamps_and_x_y_th_from_csv(
-        params.input_path + "inliers_poses.csv")
+        params.output_path + "inliers_poses.csv")
     inlier_dx, inlier_dy, inlier_dth = get_x_y_th_velocities_from_x_y_th(inlier_x_y_th, inlier_timestamps)
     start_time_offset = inlier_timestamps[0]
     inlier_time_seconds = [(x - start_time_offset) / 1e6 for x in inlier_timestamps[1:]]
@@ -182,7 +183,7 @@ def plot_all_sources(params):
 
 def get_metrics(params):
     # Some code to run KITTI metrics over poses, based on pyslam TrajectoryMetrics
-    figure_path = params.input_path + "figs_ransac_motion_estimation/error_metrics/"
+    figure_path = params.output_path + "figs_ransac_motion_estimation/error_metrics/"
     output_path = Path(figure_path)
     if output_path.exists() and output_path.is_dir():
         shutil.rmtree(output_path)
@@ -194,11 +195,11 @@ def get_metrics(params):
 
     # Pose estimates from full matches
     full_matches_timestamps, full_matches_x_y_th = get_timestamps_and_x_y_th_from_csv(
-        params.input_path + "full_matches_poses.csv")
+        params.output_path + "full_matches_poses.csv")
     full_matches_se3s = get_raw_se3s_from_x_y_th(full_matches_x_y_th)
 
     # Pose estimates from inliers only
-    inlier_timestamps, inlier_x_y_th = get_timestamps_and_x_y_th_from_csv(params.input_path + "inliers_poses.csv")
+    inlier_timestamps, inlier_x_y_th = get_timestamps_and_x_y_th_from_csv(params.output_path + "inliers_poses.csv")
     inlier_se3s = get_raw_se3s_from_x_y_th(inlier_x_y_th)
 
     # Quick cropping hack *****
@@ -277,7 +278,7 @@ def get_metrics(params):
 
 
 def plot_ground_traces(params):
-    figure_path = params.input_path + "figs_ransac_motion_estimation/ground_traces/"
+    figure_path = params.output_path + "figs_ransac_motion_estimation/ground_traces/"
     output_path = Path(figure_path)
     if output_path.exists() and output_path.is_dir():
         shutil.rmtree(output_path)
@@ -289,11 +290,11 @@ def plot_ground_traces(params):
 
     # Pose estimates from full matches
     full_matches_timestamps, full_matches_x_y_th = get_timestamps_and_x_y_th_from_csv(
-        params.input_path + "full_matches_poses.csv")
+        params.output_path + "full_matches_poses.csv")
     full_matches_se3s = get_raw_se3s_from_x_y_th(full_matches_x_y_th)
 
     # Pose estimates from inliers only
-    inlier_timestamps, inlier_x_y_th = get_timestamps_and_x_y_th_from_csv(params.input_path + "inliers_poses.csv")
+    inlier_timestamps, inlier_x_y_th = get_timestamps_and_x_y_th_from_csv(params.output_path + "inliers_poses.csv")
     inlier_se3s = get_raw_se3s_from_x_y_th(inlier_x_y_th)
 
     # Accumulate poses
@@ -330,6 +331,8 @@ def main():
     parser = ArgumentParser(add_help=False)
     parser.add_argument('--input_path', type=str, default="",
                         help='Path to folder containing required inputs')
+    parser.add_argument('--output_path', type=str, default="",
+                        help='Path to folder where outputs will be saved')
     parser.add_argument('--num_samples', type=int, default=settings.TOTAL_SAMPLES,
                         help='Number of samples to process')
     params = parser.parse_args()
