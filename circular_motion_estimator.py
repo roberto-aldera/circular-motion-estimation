@@ -13,6 +13,7 @@ from dataclasses import dataclass
 import operator
 import settings
 import pdb
+import logging
 from pyslam.metrics import TrajectoryMetrics
 from pose_tools.pose_utils import *
 from unpack_ro_protobuf import get_ro_state_from_pb, get_matrix_from_pb
@@ -28,6 +29,9 @@ sys.path.insert(-1, "/workspace/code/radar-navigation/build/radarnavigation_data
 from mrg.logging.indexed_monolithic import IndexedMonolithic
 from mrg.adaptors.pointcloud import PbSerialisedPointCloudToPython
 from mrg.pointclouds.classes import PointCloud
+
+# create logger
+logger = logging.getLogger('__name__')
 
 
 @dataclass
@@ -65,13 +69,13 @@ def circular_motion_estimation(params, radar_state_mono):
         selected_matches = get_matrix_from_pb(ro_state.selected_matches).astype(int)
         selected_matches = np.reshape(selected_matches, (selected_matches.shape[1], -1))
 
-        # print("Size of primary landmarks:", len(primary_landmarks))
-        # print("Size of secondary landmarks:", len(secondary_landmarks))
+        logger.debug(f'Size of primary landmarks {len(primary_landmarks)}')
+        logger.debug(f'Size of secondary landmarks: {len(secondary_landmarks)}')
 
         # Selected matches are those that were used by RO, best matches are for development purposes here in python land
         matches_to_plot = selected_matches.astype(int)
 
-        print("Processing index: ", i)
+        logger.info(f'Processing index: {i}')
         matched_points = []
 
         for match_idx in range(len(matches_to_plot)):
@@ -102,12 +106,12 @@ def circular_motion_estimation(params, radar_state_mono):
         # pose_from_circular_motion = get_median_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates)
         pose_from_circular_motion = get_experimental_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates)
         poses_from_circular_motion.append(pose_from_circular_motion)
-        print("Pose from circular motion:", pose_from_circular_motion)
+        logger.debug(f'Pose from circular motion: {pose_from_circular_motion}')
 
         # Motion estimate from running SVD on all the points
         pose_from_svd = get_motion_estimates_from_svd_on_full_matches(matched_points)
         poses_from_full_match_set.append(pose_from_svd)
-        print("SVD motion estimate (x, y, th):", pose_from_svd)
+        logger.debug(f'SVD motion estimate (x, y, th) {pose_from_svd}')
 
     save_timestamps_and_x_y_th_to_csv(timestamps_from_ro_state, x_y_th=poses_from_full_match_set,
                                       pose_source="full_matches",
@@ -136,7 +140,7 @@ def get_experimental_dx_dy_dth_from_circular_motion_estimates(circular_motion_es
         if (circular_motion_estimates[i].theta >= lower_theta_bound) and (
                 circular_motion_estimates[i].theta <= upper_theta_bound):
             chosen_indices.append(i)
-    print("Using", len(chosen_indices), "out of", len(circular_motion_estimates), "circular motion estimates.")
+    logger.debug(f'Using {len(chosen_indices)} out of {len(circular_motion_estimates)} circular motion estimates.')
 
     # A staging area for some plotting
     # plt.figure(figsize=(10, 10))
@@ -185,7 +189,7 @@ def get_mean_dx_dy_dth_from_circular_motion_estimates_iqr(circular_motion_estima
             radius = 1 / circular_motion_estimates[idx].curvature
         cm_poses.append(get_transform_by_r_and_theta(radius,
                                                      circular_motion_estimates[idx].theta))
-    print("Using", len(cm_poses), "out of", len(circular_motion_estimates), "circular motion estimates.")
+    logger.debug(f'Using {len(cm_poses)} out of {len(circular_motion_estimates)} circular motion estimates.')
 
     dx_value = statistics.mean([motions[0, 3] for motions in cm_poses])
     dy_value = statistics.mean([motions[1, 3] for motions in cm_poses])
@@ -264,7 +268,7 @@ def get_motion_estimates_from_svd_on_full_matches(matched_points):
 
 
 def plot_csv_things(params):
-    print("Plotting pose estimate data...")
+    logger.info("Plotting pose estimate data...")
 
     figure_path = params.output_path + "figs_circular_motion_estimation/"
     output_path = Path(figure_path)
@@ -456,15 +460,15 @@ def get_metrics(params):
 
 
 def print_trajectory_metrics(tm_gt_est, segment_lengths, data_name="this"):
-    print("\nTrajectory Metrics for", data_name, "set:")
+    logger.info(f'\nTrajectory Metrics for {data_name} set:')
     # print("endpoint_error:", tm_gt_est.endpoint_error(segment_lengths))
     # print("segment_errors:", tm_gt_est.segment_errors(segment_lengths))
     # print("traj_errors:", tm_gt_est.traj_errors())
     # print("rel_errors:", tm_gt_est.rel_errors())
     # print("error_norms:", tm_gt_est.error_norms())
-    print("mean_err:", tm_gt_est.mean_err())
+    logger.info(f'mean_err: {tm_gt_est.mean_err()}')
     # print("cum_err:", tm_gt_est.cum_err())
-    print("rms_err:", tm_gt_est.rms_err())
+    logger.info(f'rms_err: {tm_gt_est.rms_err()}')
 
 
 def main():
@@ -475,9 +479,18 @@ def main():
                         help='Path to folder where outputs will be saved')
     parser.add_argument('--num_samples', type=int, default=settings.TOTAL_SAMPLES,
                         help='Number of samples to process')
+    parser.add_argument('--verbose', type=int, default=0,
+                        help='Logging level')
     params = parser.parse_args()
 
-    print("Running script...")
+    logging_level = logging.DEBUG if params.verbose > 0 else logging.INFO
+    logger.setLevel(logging_level)
+    # create console handler and set level to debug
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    logger.addHandler(ch)
+
+    logger.info("Running script...")
     # python circular_motion_estimator.py
     # --input_path "/workspace/data/landmark-distortion/ro_state_pb_developing/ro_state_files/"
     # --output_path "/workspace/data/landmark-distortion/ro_state_pb_developing/circular_motion_dev/"
@@ -486,7 +499,7 @@ def main():
     # You need to run this: ~/code/corelibs/build/tools-cpp/bin/MonolithicIndexBuilder
     # -i /Users/roberto/Desktop/ro_state.monolithic -o /Users/roberto/Desktop/ro_state.monolithic.index
     radar_state_mono = IndexedMonolithic(params.input_path + "ro_state.monolithic")
-    print("Number of indices in this radar odometry state monolithic:", len(radar_state_mono))
+    logger.info(f'Number of indices in this radar odometry state monolithic: {len(radar_state_mono)}')
 
     circular_motion_estimation(params, radar_state_mono)
     plot_csv_things(params)
