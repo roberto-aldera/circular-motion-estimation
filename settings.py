@@ -18,7 +18,9 @@ K_RADAR_INDEX_OFFSET = 0
 AUX0_NAME = "ransac-inliers-svd"
 AUX1_NAME = "cm-iqr-medians"
 AUX2_NAME = "cm-iqr-means"
-AUX3_NAME = "cm-sd-means"
+AUX3_NAME = "aux3"
+AUX4_NAME = "aux4"
+AUX5_NAME = "aux5"
 
 # General dataset parameters
 TOTAL_SAMPLES = 1

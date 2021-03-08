@@ -41,9 +41,17 @@ def get_metrics(params):
     aux2_timestamps, aux2_x_y_th = get_timestamps_and_x_y_th_from_csv(params.path + "2000_means_iqr_poses.csv")
     aux2_se3s = get_raw_se3s_from_x_y_th(aux2_x_y_th)
 
-    # Aux 3 - using the mean for dx, dy, dth (within 1 sd of the mean of all thetas)
-    aux3_timestamps, aux3_x_y_th = get_timestamps_and_x_y_th_from_csv(params.path + "2000_means_sd_poses.csv")
+    # Aux 3
+    aux3_timestamps, aux3_x_y_th = get_timestamps_and_x_y_th_from_csv(params.path + "2000_double_iqr_poses_theta_25_75.csv")
     aux3_se3s = get_raw_se3s_from_x_y_th(aux3_x_y_th)
+
+    # Aux 4
+    aux4_timestamps, aux4_x_y_th = get_timestamps_and_x_y_th_from_csv(params.path + "2000_double_iqr_poses_theta_25_75_v2.csv")
+    aux4_se3s = get_raw_se3s_from_x_y_th(aux4_x_y_th)
+
+    # Aux 5
+    aux5_timestamps, aux5_x_y_th = get_timestamps_and_x_y_th_from_csv(params.path + "2000_double_iqr_poses_theta_10_90.csv")
+    aux5_se3s = get_raw_se3s_from_x_y_th(aux5_x_y_th)
 
     relative_pose_index = settings.K_RADAR_INDEX_OFFSET + 1
     relative_pose_timestamp = gt_timestamps[relative_pose_index]
@@ -54,6 +62,8 @@ def get_metrics(params):
     assert (aux1_timestamps[0] - relative_pose_timestamp) < 500
     assert (aux2_timestamps[0] - relative_pose_timestamp) < 500
     assert (aux3_timestamps[0] - relative_pose_timestamp) < 500
+    assert (aux4_timestamps[0] - relative_pose_timestamp) < 500
+    assert (aux5_timestamps[0] - relative_pose_timestamp) < 500
 
     # making global poses from the relative poses
     gt_global_se3s = [np.identity(4)]
@@ -86,6 +96,16 @@ def get_metrics(params):
         aux3_global_se3s.append(aux3_global_se3s[i - 1] @ aux3_se3s[i])
     aux3_global_SE3s = get_se3s_from_raw_se3s(aux3_global_se3s)
 
+    aux4_global_se3s = [np.identity(4)]
+    for i in range(1, len(aux4_se3s)):
+        aux4_global_se3s.append(aux4_global_se3s[i - 1] @ aux4_se3s[i])
+    aux4_global_SE3s = get_se3s_from_raw_se3s(aux4_global_se3s)
+
+    aux5_global_se3s = [np.identity(4)]
+    for i in range(1, len(aux4_se3s)):
+        aux5_global_se3s.append(aux5_global_se3s[i - 1] @ aux5_se3s[i])
+    aux5_global_SE3s = get_se3s_from_raw_se3s(aux5_global_se3s)
+
     segment_lengths = [100, 200, 300, 400, 500, 600, 700, 800]
     # segment_lengths = [10, 20]
     # segment_lengths = [100, 200, 300, 400]
@@ -105,6 +125,12 @@ def get_metrics(params):
     tm_gt_aux3 = TrajectoryMetrics(gt_global_SE3s, aux3_global_SE3s)
     print_trajectory_metrics(tm_gt_aux3, segment_lengths, data_name=settings.AUX3_NAME)
 
+    tm_gt_aux4 = TrajectoryMetrics(gt_global_SE3s, aux4_global_SE3s)
+    print_trajectory_metrics(tm_gt_aux4, segment_lengths, data_name=settings.AUX4_NAME)
+
+    tm_gt_aux5 = TrajectoryMetrics(gt_global_SE3s, aux5_global_SE3s)
+    print_trajectory_metrics(tm_gt_aux5, segment_lengths, data_name=settings.AUX5_NAME)
+
     # Visualiser experimenting
     from pyslam.visualizers import TrajectoryVisualizer
     output_path_for_metrics = Path(params.path + "visualised_metrics")
@@ -114,7 +140,8 @@ def get_metrics(params):
 
     visualiser = TrajectoryVisualizer(
         {"full_matches": tm_gt_fullmatches, settings.AUX0_NAME: tm_gt_aux0, settings.AUX1_NAME: tm_gt_aux1,
-         settings.AUX2_NAME: tm_gt_aux2, settings.AUX3_NAME: tm_gt_aux3})
+         settings.AUX2_NAME: tm_gt_aux2, settings.AUX3_NAME: tm_gt_aux3, settings.AUX4_NAME: tm_gt_aux4,
+         settings.AUX5_NAME: tm_gt_aux5})
     visualiser.plot_cum_norm_err(outfile="%s%s" % (output_path_for_metrics, "/cumulative_norm_errors.pdf"))
     visualiser.plot_segment_errors(segs=segment_lengths,
                                    outfile="%s%s" % (output_path_for_metrics, "/segment_errors.pdf"))
@@ -144,7 +171,7 @@ def main():
 
     print("Running script...")
     # python compare_estimator_metrics.py
-    # --path "/workspace/data/landmark-distortion/ro_state_pb_developing/circular_motion_dev/" --num_samples 2000
+    # --path "/workspace/data/landmark-distortion/ro_state_pb_developing/circular_motion_dev_metrics_comparison/" --num_samples 2000
 
     get_metrics(params)
 
