@@ -88,7 +88,13 @@ def get_theta_and_curvature_from_single_match(d_1, d_2, phi_1, phi_2):
         theta = 2 * np.arctan(
             (-np.sin(phi_2) + (d_1 / d_2) * np.sin(phi_1)) / ((d_1 / d_2) * np.cos(phi_1) + np.cos(phi_2)))
         radius = (d_2 * np.sin(phi_1 - phi_2 - theta)) / (2 * np.sin(theta / 2) * np.sin(-phi_1 + (theta / 2)))
-    curvature = 1 / radius
+
+    # Handle possibility of radius being zero gracefully
+    if radius == 0.0:
+        curvature = np.inf
+    else:
+        curvature = 1 / radius
+
     return theta, curvature
 
 
