@@ -1,7 +1,8 @@
 # Script to estimate R and theta from landmarks for imposing circular motion model
-# python circular_motion_estimator.py --input_path "/workspace/data/landmark-distortion/ro_state_pb_developing/"
-# --num_samples 80
+# python circular_motion_estimator.py --input_path "/workspace/data/landmark-distortion/ro_state_pb_developing/ro_state_files/"
+# --output_path "/workspace/data/landmark-distortion/ro_state_pb_developing/circular_motion_dev/" --num_samples 1
 
+from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 import statistics
@@ -55,8 +56,7 @@ def circular_motion_estimation(params, radar_state_mono):
     poses_from_circular_motion = []
     timestamps_from_ro_state = []
 
-    for i in range(params.num_samples):
-        # i = 3  # just for debugging because I know frame 3 is problematic
+    for i in tqdm(range(params.num_samples)):
         pb_state, name_scan, _ = radar_state_mono[i]
         ro_state = get_ro_state_from_pb(pb_state)
         timestamps_from_ro_state.append(ro_state.timestamp)
@@ -75,7 +75,7 @@ def circular_motion_estimation(params, radar_state_mono):
         # Selected matches are those that were used by RO, best matches are for development purposes here in python land
         matches_to_plot = selected_matches.astype(int)
 
-        logger.info(f'Processing index: {i}')
+        logger.debug(f'Processing index: {i}')
         matched_points = []
 
         for match_idx in range(len(matches_to_plot)):
@@ -89,22 +89,16 @@ def circular_motion_estimation(params, radar_state_mono):
 
         # Useful debugging plotting to see what's going on (while keeping this function neat and tidy)
         # debugging_plotting(figure_path, index=i, circular_motion_estimates=circular_motion_estimates)
+        # plot_sorted_values(figure_path, index=i, circular_motion_estimates=circular_motion_estimates)
+        # plot_2d_kde_values(figure_path, index=i, circular_motion_estimates=circular_motion_estimates)
 
         ############################################################################################
-        # A staging area for some plotting
-        # plt.figure(figsize=(10, 10))
-        # theta_values = [estimates.theta for estimates in circular_motion_estimates]
-        # plt.plot(theta_values, '.')
-        # plt.title("Thetas")
-        # plt.grid()
-        # # plt.ylim(-1, 1)
-        # # plt.xlim(-1, 1)
-        # plt.savefig("%s%s%i%s" % (figure_path, "/outlier_detection_", i, ".pdf"))
-        # plt.close()
-        ############################################################################################
-
+        pose_from_circular_motion = get_dx_dy_dth_from_circular_motion_estimates_kde_2d(circular_motion_estimates)
+        # pose_from_circular_motion = get_dx_dy_dth_from_circular_motion_estimates_double_iqr(circular_motion_estimates)
+        # pose_from_circular_motion = do_experimental_local_outlier_factor(circular_motion_estimates, idx=i)
         # pose_from_circular_motion = get_median_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates)
-        pose_from_circular_motion = get_experimental_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates)
+        # pose_from_circular_motion = get_experimental_dx_dy_dth_from_circular_motion_estimates(
+        #     circular_motion_estimates)
         poses_from_circular_motion.append(pose_from_circular_motion)
         logger.debug(f'Pose from circular motion: {pose_from_circular_motion}')
 
@@ -121,6 +115,270 @@ def circular_motion_estimation(params, radar_state_mono):
                                       export_folder=params.output_path)
 
 
+def get_dx_dy_dth_from_circular_motion_estimates_kde_2d(circular_motion_estimates):
+    # Need to drop circular motion estimates where curvature values could be np.inf:
+    validated_circular_motion_estimates = []
+    for cme in circular_motion_estimates:
+        if cme.curvature != np.inf:
+            validated_circular_motion_estimates.append(cme)
+    from sklearn.neighbors import KernelDensity
+    thetas = np.array([cme.theta for cme in validated_circular_motion_estimates])
+    curvatures = np.array([cme.curvature for cme in validated_circular_motion_estimates])
+
+    # m1 = thetas
+    # m2 = curvatures
+    # x, y = m1 + m2, m1 - m2
+    x, y = thetas, curvatures
+    value_window_dimension = 0.5
+    num_bins = 100
+    cell_size = 2 * value_window_dimension / num_bins
+    xx, yy, zz = kde2D(x, y, bandwidth=0.05, dim=value_window_dimension)
+
+    # Find "hottest" cell in heatmap
+    max_zz_indices = np.unravel_index(zz.argmax(), zz.shape)
+    # Get theta and curvature thresholds from the cell's limits - this is a center-valued cell (so divide by 2)
+    # Perhaps later it would be worth taking nearby cells too if necessary - divide by 1 to widen things for now
+    width_constant = 1
+    theta_min, theta_max = xx[max_zz_indices[0]][0] - (cell_size * width_constant), xx[max_zz_indices[0]][0] + (
+                cell_size * width_constant)
+    curvature_min, curvature_max = yy[0][max_zz_indices[1]] - cell_size * width_constant, yy[0][
+        max_zz_indices[1]] + cell_size * width_constant
+
+    # Select indices from circular match estimates that correspond to matches within KDE bounds
+    # Keep all indices where theta is between these two elements (including them)
+    selected_indices_based_on_theta = []
+    middle_thetas = []
+    for index in range(len(thetas)):
+        theta = validated_circular_motion_estimates[index].theta
+        if (theta >= theta_min) and (theta <= theta_max):
+            middle_thetas.append(theta)
+            selected_indices_based_on_theta.append(index)
+    logger.debug(f'Thetas within the specified range: {len(middle_thetas)} of {len(thetas)}')
+
+    # Keep all indices where curvature is between these two elements (including them)
+    selected_indices_based_on_curvature = []
+    middle_curvatures = []
+    for index in range(len(curvatures)):
+        curvature = validated_circular_motion_estimates[index].curvature
+        if (curvature >= curvature_min) and (curvature <= curvature_max):
+            middle_curvatures.append(curvature)
+            selected_indices_based_on_curvature.append(index)
+    logger.debug(f'Curvatures within the specified range: {len(middle_curvatures)} of {len(curvatures)}')
+
+    # Find indices that are common between both middle ranges
+    common_indices = list(set(selected_indices_based_on_theta).intersection(selected_indices_based_on_curvature))
+    logger.debug(
+        f'Indices common to both theta and curvature ranges: {len(common_indices)} of {len(circular_motion_estimates)}')
+
+    cm_poses = []
+    # for index in selected_indices_based_on_theta:
+    # for index in selected_indices_based_on_curvature:
+    for index in common_indices:
+        radius = np.inf
+        if validated_circular_motion_estimates[index].curvature != 0:
+            radius = 1 / validated_circular_motion_estimates[index].curvature
+        cm_poses.append(get_transform_by_r_and_theta(radius,
+                                                     validated_circular_motion_estimates[index].theta))
+
+    dx_value = statistics.mean([motions[0, 3] for motions in cm_poses])
+    dy_value = statistics.mean([motions[1, 3] for motions in cm_poses])
+    dth_value = statistics.mean([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses])
+
+    return [dx_value, dy_value, dth_value]
+
+
+def get_dx_dy_dth_from_circular_motion_estimates_kde_1d(circular_motion_estimates):
+    # Need to drop circular motion estimates where curvature values could be np.inf:
+    validated_circular_motion_estimates = []
+    for cme in circular_motion_estimates:
+        if cme.curvature != np.inf:
+            validated_circular_motion_estimates.append(cme)
+    bw = 0.01
+    from sklearn.neighbors import KernelDensity
+    thetas = np.array([cme.theta for cme in validated_circular_motion_estimates])[:, np.newaxis]
+    curvatures = np.array([cme.curvature for cme in validated_circular_motion_estimates])[:, np.newaxis]
+    kde_thetas = KernelDensity(kernel='gaussian', bandwidth=bw).fit(thetas)
+    kde_curvatures = KernelDensity(kernel='gaussian', bandwidth=bw).fit(curvatures)
+
+    x_dim = 0.05
+    x = np.linspace(-x_dim, x_dim, 1001)[:, np.newaxis]
+    theta_density = np.exp(kde_thetas.score_samples(x))
+    curvature_density = np.exp(kde_curvatures.score_samples(x))
+
+    # Get max for theta and curvature from KDEs:
+    best_theta = x[int(np.argmax(np.exp(kde_thetas.score_samples(x))))]
+    best_curvature = x[int(np.argmax(np.exp(kde_curvatures.score_samples(x))))]
+    # print("Best theta:", best_theta)
+    # print("Best curvature:", best_curvature)
+
+    radius = np.inf
+    if best_curvature != 0:
+        radius = 1 / best_curvature
+
+    cm_pose = get_transform_by_r_and_theta(radius, best_theta)
+
+    dx_value = cm_pose[0, 3]
+    dy_value = cm_pose[1, 3]
+    dth_value = np.arctan2(cm_pose[1, 0], cm_pose[0, 0])
+    # pdb.set_trace()
+
+    return [dx_value, dy_value, dth_value]
+
+
+def get_dx_dy_dth_from_circular_motion_estimates_double_iqr(circular_motion_estimates):
+    thetas = [cme.theta for cme in circular_motion_estimates]
+    curvatures = [cme.curvature for cme in circular_motion_estimates]
+
+    # get Q1 and Q3 element from thetas and curvatures
+    percentile_start, percentile_end = 25, 75
+    q1_theta, q3_theta = np.percentile(thetas, percentile_start), np.percentile(thetas, percentile_end)
+    logger.debug(f'Q1 and Q3 for theta: {q1_theta}, {q3_theta}')
+    q1_curvature, q3_curvature = np.percentile(curvatures, 10), np.percentile(curvatures, 90)
+    logger.debug(f'Q1 and Q3 for curvature: {q1_curvature}, {q3_curvature}')
+
+    # Keep all indices where theta is between these two elements (including them)
+    selected_indices_based_on_theta = []
+    middle_thetas = []
+    for index in range(len(thetas)):
+        theta = circular_motion_estimates[index].theta
+        if (theta >= q1_theta) and (theta <= q3_theta):
+            middle_thetas.append(theta)
+            selected_indices_based_on_theta.append(index)
+    logger.debug(f'Thetas within the specified range: {len(middle_thetas)} of {len(thetas)}')
+
+    # Keep all indices where curvature is between these two elements (including them)
+    selected_indices_based_on_curvature = []
+    middle_curvatures = []
+    for index in range(len(curvatures)):
+        curvature = circular_motion_estimates[index].curvature
+        if (curvature >= q1_curvature) and (curvature <= q3_curvature):
+            middle_curvatures.append(curvature)
+            selected_indices_based_on_curvature.append(index)
+    logger.debug(f'Curvatures within the specified range: {len(middle_curvatures)} of {len(curvatures)}')
+
+    # Find indices that are common between both middle ranges
+    common_indices = list(set(selected_indices_based_on_theta).intersection(selected_indices_based_on_curvature))
+    logger.debug(
+        f'Indices common to both theta and curvature ranges: {len(common_indices)} of {len(circular_motion_estimates)}')
+
+    cm_poses = []
+    # for index in selected_indices_based_on_theta:
+    # for index in selected_indices_based_on_curvature:
+    for index in common_indices:
+        radius = np.inf
+        if circular_motion_estimates[index].curvature != 0:
+            radius = 1 / circular_motion_estimates[index].curvature
+        cm_poses.append(get_transform_by_r_and_theta(radius,
+                                                     circular_motion_estimates[index].theta))
+
+    dx_value = statistics.mean([motions[0, 3] for motions in cm_poses])
+    dy_value = statistics.mean([motions[1, 3] for motions in cm_poses])
+    dth_value = statistics.mean([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses])
+
+    return [dx_value, dy_value, dth_value]
+
+
+def do_experimental_local_outlier_factor(circular_motion_estimates, idx):
+    # Need to drop circular motion estimates where curvature values could be np.inf:
+    validated_circular_motion_estimates = []
+    for cme in circular_motion_estimates:
+        if cme.curvature != np.inf:
+            validated_circular_motion_estimates.append(cme)
+
+    from sklearn.neighbors import LocalOutlierFactor
+    cm_poses = []
+    thetas = [cme.theta for cme in validated_circular_motion_estimates]
+    curvatures = [cme.curvature for cme in validated_circular_motion_estimates]
+    thetas = (thetas - np.mean(thetas)) / np.std(thetas)
+    curvatures = (curvatures - np.ma.mean(curvatures)) / np.ma.std(curvatures)
+    # if idx == 15:
+    #     pdb.set_trace()
+    X = np.transpose(np.ma.array([thetas, curvatures]))
+
+    # fit the model for outlier detection (default)
+    clf = LocalOutlierFactor(n_neighbors=20, contamination=0.4)
+    # use fit_predict to compute the predicted labels of the training samples
+    # (when LOF is used for outlier detection, the estimator has no predict,
+    # decision_function and score_samples methods).
+    y_pred = clf.fit_predict(X)
+    # pdb.set_trace()
+
+    chosen_indices = np.where(y_pred == 1)[0]
+    # bad_indices = np.where(y_pred == -1)
+
+    # nice_points = circular_motion_estimates[cluster_indices]
+    # pdb.set_trace()
+    # logger.info(f'Using {len(chosen_indices)} out of {len(circular_motion_estimates)} circular motion estimates.')
+
+    for idx in chosen_indices:
+        radius = np.inf
+        if validated_circular_motion_estimates[idx].curvature != 0:
+            radius = 1 / validated_circular_motion_estimates[idx].curvature
+        cm_poses.append(get_transform_by_r_and_theta(radius,
+                                                     validated_circular_motion_estimates[idx].theta))
+    # pdb.set_trace()
+    dx_value = statistics.mean([motions[0, 3] for motions in cm_poses])
+    dy_value = statistics.mean([motions[1, 3] for motions in cm_poses])
+    dth_value = statistics.mean([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses])
+
+    return [dx_value, dy_value, dth_value]
+
+    # # A staging area for some plotting
+    # plt.figure(figsize=(10, 10))
+    # theta_values = [circular_motion_estimates[i].theta for i in cluster_indices[0]]
+    # curvature_values = [circular_motion_estimates[i].curvature for i in cluster_indices[0]]
+    # bad_theta_values = [circular_motion_estimates[i].theta for i in bad_indices[0]]
+    # bad_curvature_values = [circular_motion_estimates[i].curvature for i in bad_indices[0]]
+    # plt.plot(theta_values, curvature_values, 'g.')
+    # plt.plot(bad_theta_values, bad_curvature_values, 'r.')
+    # plt.title("Clustering")
+    # plt.grid()
+    # plt.gca().set_aspect('equal', adjustable='box')
+    # plt.ylim(-1, 1)
+    # # plt.xlim(-1, 1)
+    # plt.savefig("%s%i%s" % (
+    #     "/workspace/data/landmark-distortion/ro_state_pb_developing/"
+    #     "circular_motion_dev/figs_circular_motion_estimation/clustering", idx, ".pdf"))
+    # plt.close()
+
+
+def do_experimental_cluster(circular_motion_estimates, idx):
+    from sklearn.cluster import KMeans
+    logger.info("Doing kmeans things...")
+
+    thetas = [cme.theta for cme in circular_motion_estimates]
+    curvatures = [cme.curvature for cme in circular_motion_estimates]
+    thetas = (thetas - np.mean(thetas)) / np.std(thetas)
+    curvatures = (curvatures - np.mean(curvatures)) / np.std(curvatures)
+
+    X = np.transpose(np.array([thetas, curvatures]))
+    kmeans = KMeans(n_clusters=2, random_state=0).fit(X)
+    print(kmeans.labels_)
+    cluster_indices = np.where(kmeans.labels_ == 1)
+    bad_indices = np.where(kmeans.labels_ == 0)
+
+    # nice_points = circular_motion_estimates[cluster_indices]
+    # pdb.set_trace()
+
+    # A staging area for some plotting
+    plt.figure(figsize=(10, 10))
+    theta_values = [circular_motion_estimates[i].theta for i in cluster_indices[0]]
+    curvature_values = [circular_motion_estimates[i].curvature for i in cluster_indices[0]]
+    bad_theta_values = [circular_motion_estimates[i].theta for i in bad_indices[0]]
+    bad_curvature_values = [circular_motion_estimates[i].curvature for i in bad_indices[0]]
+    plt.plot(theta_values, curvature_values, 'g.')
+    plt.plot(bad_theta_values, bad_curvature_values, 'r.')
+    plt.title("Clustering")
+    plt.grid()
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.ylim(-1, 1)
+    # plt.xlim(-1, 1)
+    plt.savefig("%s%i%s" % (
+        "/workspace/data/landmark-distortion/ro_state_pb_developing/"
+        "circular_motion_dev/figs_circular_motion_estimation/clustering", idx, ".pdf"))
+    plt.close()
+
+
 def get_experimental_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates):
     import scipy
     from scipy.stats import sem
@@ -129,9 +387,9 @@ def get_experimental_dx_dy_dth_from_circular_motion_estimates(circular_motion_es
     thetas = [cme.theta for cme in circular_motion_estimates]
     # mean_theta = np.mean(thetas)
     sd_theta = np.std(thetas)
-    sem_theta = scipy.stats.sem(thetas)  # standard error of the mean
+    # sem_theta = scipy.stats.sem(thetas)  # standard error of the mean
     mad_theta = scipy.stats.median_abs_deviation(thetas)  # median absolute deviation
-
+    # pdb.set_trace()
     lower_theta_bound = np.mean(thetas) - sd_theta
     upper_theta_bound = np.mean(thetas) + sd_theta
     # lower_theta_bound = np.median(thetas) - mad_theta
@@ -305,6 +563,237 @@ def plot_csv_things(params):
     plt.ylabel("units/sample")
     plt.legend()
     plt.savefig("%s%s" % (output_path, "/odometry_comparison.pdf"))
+    plt.close()
+
+
+def plot_sorted_values(figure_path, index, circular_motion_estimates):
+    thetas = [cme.theta for cme in circular_motion_estimates]
+    curvatures = [cme.curvature for cme in circular_motion_estimates]
+
+    # get Q1 and Q3 element from thetas and curvatures
+    percentile_start, percentile_end = 30, 70
+    q1_theta, q3_theta = np.percentile(thetas, percentile_start), np.percentile(thetas, percentile_end)
+    logger.debug(f'Q1 and Q3 for theta: {q1_theta}, {q3_theta}')
+    q1_curvature, q3_curvature = np.percentile(curvatures, percentile_start), np.percentile(curvatures, percentile_end)
+    logger.debug(f'Q1 and Q3 for curvature: {q1_curvature}, {q3_curvature}')
+
+    # Keep all indices where theta is between these two elements (including them)
+    selected_indices_based_on_theta = []
+    middle_thetas = []
+    middle_curvatures_based_on_theta = []
+    middle_thetas_based_on_curvature = []
+
+    for i in range(len(thetas)):
+        theta = circular_motion_estimates[i].theta
+        if (theta >= q1_theta) and (theta <= q3_theta):
+            middle_thetas.append(theta)
+            middle_curvatures_based_on_theta.append(circular_motion_estimates[i].curvature)
+            selected_indices_based_on_theta.append(i)
+    logger.debug(f'Thetas within the specified range: {len(middle_thetas)} of {len(thetas)}')
+
+    # Keep all indices where curvature is between these two elements (including them)
+    selected_indices_based_on_curvature = []
+    middle_curvatures = []
+    for i in range(len(curvatures)):
+        curvature = circular_motion_estimates[i].curvature
+        if (curvature >= q1_curvature) and (curvature <= q3_curvature):
+            middle_curvatures.append(curvature)
+            middle_thetas_based_on_curvature.append(circular_motion_estimates[i].theta)
+            selected_indices_based_on_curvature.append(i)
+    logger.debug(f'Curvatures within the specified range: {len(middle_curvatures)} of {len(curvatures)}')
+
+    # Find indices that are common between both middle ranges
+    common_indices = list(set(selected_indices_based_on_theta).intersection(selected_indices_based_on_curvature))
+
+    # plt.figure(figsize=(10, 10))
+    # plt.plot(middle_thetas, 'b.', label="middle_thetas")
+    # plt.plot(middle_curvatures_based_on_theta, 'r.', label="curvatures_based_on_thetas")
+    # plt.plot(middle_curvatures, 'rx', label="middle_curvatures")
+    # plt.plot(middle_thetas_based_on_curvature, 'bx', label="thetas_based_on_curvature")
+    # plt.title("Theta vs curvature")
+    # plt.grid()
+    # plt.xlabel("Curvature")
+    # plt.ylabel("Theta")
+    # plt.ylim(-5, 5)
+    # # plt.xlim(-1, 1)
+    # plt.legend()
+    # plt.savefig("%s%s%i%s" % (figure_path, "/curvature_theta_", index, ".pdf"))
+    # plt.close()
+
+    # Plotting final motion estimates #
+    cm_poses_theta = []
+    for idx in selected_indices_based_on_theta:
+        radius = np.inf
+        if circular_motion_estimates[idx].curvature != 0:
+            radius = 1 / circular_motion_estimates[idx].curvature
+        cm_poses_theta.append(get_transform_by_r_and_theta(radius,
+                                                           circular_motion_estimates[idx].theta))
+
+    cm_poses_curvature = []
+    for idx in selected_indices_based_on_curvature:
+        radius = np.inf
+        if circular_motion_estimates[idx].curvature != 0:
+            radius = 1 / circular_motion_estimates[idx].curvature
+        cm_poses_curvature.append(get_transform_by_r_and_theta(radius,
+                                                               circular_motion_estimates[idx].theta))
+
+    cm_poses_both = []
+    for idx in common_indices:
+        radius = np.inf
+        if circular_motion_estimates[idx].curvature != 0:
+            radius = 1 / circular_motion_estimates[idx].curvature
+        cm_poses_both.append(get_transform_by_r_and_theta(radius,
+                                                          circular_motion_estimates[idx].theta))
+
+    # Plot some Gaussians
+    import scipy.stats as stats
+    import math
+    dx_values_theta = [motions[0, 3] for motions in cm_poses_theta]
+    plt.figure(figsize=(10, 10))
+    mu = np.mean(dx_values_theta)
+    variance = np.var(dx_values_theta)
+    sigma = math.sqrt(variance)
+    x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 100)
+    plt.plot(x, stats.norm.pdf(x, mu, sigma), label="dx_theta")
+
+    dx_values_curvature = [motions[0, 3] for motions in cm_poses_curvature]
+    mu = np.mean(dx_values_curvature)
+    variance = np.var(dx_values_curvature)
+    sigma = math.sqrt(variance)
+    x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 100)
+    plt.plot(x, stats.norm.pdf(x, mu, sigma), label="dx_curvature")
+
+    dx_values_both = [motions[0, 3] for motions in cm_poses_both]
+    mu = np.mean(dx_values_both)
+    variance = np.var(dx_values_both)
+    sigma = math.sqrt(variance)
+    x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 100)
+    plt.plot(x, stats.norm.pdf(x, mu, sigma), label="dx_both")
+
+    plt.grid()
+    plt.legend()
+    plt.savefig("%s%s%i%s" % (figure_path, "/gaussian_", index, ".pdf"))
+    plt.close()
+
+    # plt.figure(figsize=(10, 10))
+    # plt.plot([motions[0, 3] for motions in cm_poses], 'b.', label="dx")
+    # plt.plot([motions[1, 3] for motions in cm_poses], 'r.', label="dy")
+    # plt.plot([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses], 'g.', label="dtheta")
+    # plt.title("Motions")
+    # plt.grid()
+    # # plt.xlabel("Curvature")
+    # # plt.ylabel("Theta")
+    # plt.ylim(-5, 5)
+    # # plt.xlim(-1, 1)
+    # plt.legend()
+    # plt.savefig("%s%s%i%s" % (figure_path, "/estimates_", index, ".pdf"))
+    # plt.close()
+
+
+def plot_1d_kde_values(figure_path, index, circular_motion_estimates):
+    # Need to drop circular motion estimates where curvature values could be np.inf:
+    validated_circular_motion_estimates = []
+    for cme in circular_motion_estimates:
+        if cme.curvature != np.inf:
+            validated_circular_motion_estimates.append(cme)
+    bw = 0.001
+    from sklearn.neighbors import KernelDensity
+    thetas = np.array([cme.theta for cme in validated_circular_motion_estimates])[:, np.newaxis]
+    curvatures = np.array([cme.curvature for cme in validated_circular_motion_estimates])[:, np.newaxis]
+    kde_thetas = KernelDensity(kernel='gaussian', bandwidth=bw).fit(thetas)
+    kde_curvatures = KernelDensity(kernel='gaussian', bandwidth=bw).fit(curvatures)
+
+    x_dim = 0.5
+    x = np.linspace(-x_dim, x_dim, 10000)[:, np.newaxis]
+    theta_density = np.exp(kde_thetas.score_samples(x))
+    curvature_density = np.exp(kde_curvatures.score_samples(x))
+
+    # Get max for theta and curvature from KDEs:
+    best_theta = x[int(np.argmax(np.exp(kde_thetas.score_samples(x))))]
+    best_curvature = x[int(np.argmax(np.exp(kde_curvatures.score_samples(x))))]
+    print("Best theta:", best_theta)
+    print("Best curvature:", best_curvature)
+
+    plt.figure(figsize=(10, 10))
+    plt.plot(x, theta_density, label="thetas")
+    plt.plot(x, curvature_density, label="curvatures")
+    plt.title("KDE")
+    plt.grid()
+    plt.legend()
+    plt.savefig("%s%s%i%s" % (figure_path, "/kde_", index, ".pdf"))
+    plt.close()
+
+
+def kde2D(x, y, bandwidth, dim, xbins=100j, ybins=100j, **kwargs):
+    """Build 2D kernel density estimate (KDE)."""
+    from sklearn.neighbors import KernelDensity
+    # create grid of sample locations (default: 100x100)
+    xx, yy = np.mgrid[-dim:dim:xbins, -dim:dim:ybins]
+    # xx, yy = np.mgrid[x.min():x.max():xbins,
+    #          y.min():y.max():ybins]
+
+    xy_sample = np.vstack([yy.ravel(), xx.ravel()]).T
+    xy_train = np.vstack([y, x]).T
+
+    kde_skl = KernelDensity(bandwidth=bandwidth, **kwargs)
+    kde_skl.fit(xy_train)
+
+    # score_samples() returns the log-likelihood of the samples
+    z = np.exp(kde_skl.score_samples(xy_sample))
+    return xx, yy, np.reshape(z, xx.shape)
+
+
+def plot_2d_kde_values(figure_path, index, circular_motion_estimates):
+    # Need to drop circular motion estimates where curvature values could be np.inf:
+    validated_circular_motion_estimates = []
+    for cme in circular_motion_estimates:
+        if cme.curvature != np.inf:
+            validated_circular_motion_estimates.append(cme)
+    from sklearn.neighbors import KernelDensity
+    thetas = np.array([cme.theta for cme in validated_circular_motion_estimates])
+    curvatures = np.array([cme.curvature for cme in validated_circular_motion_estimates])
+
+    # m1 = thetas
+    # m2 = curvatures
+    # x, y = m1 + m2, m1 - m2
+    x, y = thetas, curvatures
+    value_window_dimension = 0.5
+    num_bins = 100
+    cell_size = 2 * value_window_dimension / num_bins
+    xx, yy, zz = kde2D(x, y, bandwidth=0.005, dim=value_window_dimension)
+
+    # Find "hottest" cell in heatmap
+    max_zz_indices = np.unravel_index(zz.argmax(), zz.shape)
+    # Get theta and curvature thresholds from the cell's limits - this is a center-valued cell
+    # Perhaps later it would be worth taking nearby cells too if necessary
+    theta_min, theta_max = xx[max_zz_indices[0]][0] - (cell_size / 1), xx[max_zz_indices[0]][0] + (cell_size / 1)
+    curvature_min, curvature_max = yy[0][max_zz_indices[1]] - cell_size / 1, yy[0][max_zz_indices[1]] + cell_size / 1
+    print(max_zz_indices)
+    print(theta_min, theta_max)
+    print(curvature_min, curvature_max)
+    print("Cell size:", cell_size)
+    print(curvature_min - curvature_max)
+    # pdb.set_trace()
+
+    # cropped_x = [item for item in thetas if theta_min < item < theta_max]
+    # cropped_y = [item for item in thetas if theta_min < item < theta_max]
+    # cropped_y = [item for item in curvatures if curvature_min < item < curvature_max]
+    raw_points = np.transpose(np.array([x, y]))
+    # pdb.set_trace()
+    cropped_points = np.array([item for item in raw_points if theta_min < item[0] < theta_max])
+    cropped_points = np.array([item for item in cropped_points if curvature_min < item[1] < curvature_max])
+
+    print("Raw/cropped points size:", raw_points.shape, cropped_points.shape)
+
+    plt.figure(figsize=(10, 10))
+    plt.pcolormesh(xx, yy, zz, shading='auto')
+    plt.scatter(x, y, s=2, facecolor='white')
+    plt.scatter(cropped_points[:, 0], cropped_points[:, 1], s=2, facecolor='r')
+    plt.title("KDE")
+    plt.grid()
+    plt.xlim([-0.5, 0.5])
+    plt.ylim([-0.5, 0.5])
+    plt.savefig("%s%s%i%s" % (figure_path, "/kde_2d_", index, ".png"))
     plt.close()
 
 
@@ -491,6 +980,7 @@ def main():
     logger.addHandler(ch)
 
     logger.info("Running script...")
+
     # python circular_motion_estimator.py
     # --input_path "/workspace/data/landmark-distortion/ro_state_pb_developing/ro_state_files/"
     # --output_path "/workspace/data/landmark-distortion/ro_state_pb_developing/circular_motion_dev/"
