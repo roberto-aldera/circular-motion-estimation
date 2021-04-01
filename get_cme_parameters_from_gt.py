@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 import pdb
 from argparse import ArgumentParser
 import logging
+from pyslam.metrics import TrajectoryMetrics
+from pathlib import Path
+import shutil
 
 # create logger
 logger = logging.getLogger('__name__')
@@ -15,6 +18,8 @@ def get_cme_parameters(params):
 
     gt_x, gt_y, gt_th = get_x_y_th_from_se3s(se3s)
     cme_gt_x, cme_gt_y, cme_gt_th = [], [], []
+    se3s_from_cm_parameters = []
+
     # Try and find a theta and curvature value that gets as close to the pose as possible
     for i in range(params.num_samples):
         idx = i
@@ -25,10 +30,14 @@ def get_cme_parameters(params):
         x_gt = se3_gt[0, 3]
         y_gt = se3_gt[1, 3]
 
-        r_estimate = x_gt / np.sin(th_gt)
+        if th_gt != 0:
+            r_estimate = x_gt / np.sin(th_gt)
+        else:
+            r_estimate = np.inf
         logger.debug(f'R, theta estimate: {r_estimate, th_gt}')
 
         se3_from_r_theta = get_transform_by_r_and_theta(r_estimate, th_gt)
+        se3s_from_cm_parameters.append(se3_from_r_theta)
         x_est = se3_from_r_theta[0, 3]
         y_est = se3_from_r_theta[1, 3]
         th_est = np.arctan2(se3_from_r_theta[1, 0], se3_from_r_theta[0, 0])
@@ -38,22 +47,73 @@ def get_cme_parameters(params):
         logger.debug(f'GT: {x_gt}, {y_gt}, {th_gt}')
         logger.debug(f'Est: {x_est}, {y_est}, {th_est}')
 
-    plt.figure(figsize=(15, 5))
-    dim = params.num_samples + 50
-    plt.xlim(0, dim)
-    plt.grid()
-    plt.plot(gt_x, '+-', label="gt_x")
-    plt.plot(gt_y, '+-', label="gt_y")
-    plt.plot(gt_th, '+-', label="gt_th")
-    plt.plot(cme_gt_x, '.-', label="cme_gt_x")
-    plt.plot(cme_gt_y, '.-', label="cme_gt_y")
-    plt.plot(cme_gt_th, '.-', label="cme_gt_th")
-    plt.title("Pose estimates")
-    plt.xlabel("Sample index")
-    plt.ylabel("units/sample")
-    plt.legend()
-    plt.savefig("%s%s" % (params.output_path, "/pose_comparison.pdf"))
-    plt.close()
+    do_plotting = False
+    if do_plotting:
+        plt.figure(figsize=(15, 5))
+        dim = params.num_samples + 50
+        plt.xlim(0, dim)
+        plt.grid()
+        plt.plot(gt_x, '+-', label="gt_x")
+        plt.plot(gt_y, '+-', label="gt_y")
+        plt.plot(gt_th, '+-', label="gt_th")
+        plt.plot(cme_gt_x, '.-', label="cme_gt_x")
+        plt.plot(cme_gt_y, '.-', label="cme_gt_y")
+        plt.plot(cme_gt_th, '.-', label="cme_gt_th")
+        plt.title("Pose estimates")
+        plt.xlabel("Sample index")
+        plt.ylabel("units/sample")
+        plt.legend()
+        plt.savefig("%s%s" % (params.output_path, "/pose_comparison.pdf"))
+        plt.close()
+
+    return se3s_from_cm_parameters
+
+
+def check_metrics(se3s_from_cm_parameters, params):
+    gt_se3s, gt_timestamps = get_ground_truth_poses_from_csv(params.input_path)
+
+    # making global poses from the relative poses
+    gt_global_se3s = [np.identity(4)]
+    for i in range(1, len(gt_se3s)):
+        gt_global_se3s.append(gt_global_se3s[i - 1] @ gt_se3s[i])
+    gt_global_SE3s = get_se3s_from_raw_se3s(gt_global_se3s)
+
+    aux0_se3s = se3s_from_cm_parameters
+    aux0_global_se3s = [np.identity(4)]
+    for i in range(1, len(aux0_se3s)):
+        aux0_global_se3s.append(aux0_global_se3s[i - 1] @ aux0_se3s[i])
+    aux0_global_SE3s = get_se3s_from_raw_se3s(aux0_global_se3s)
+
+    segment_lengths = [100, 200, 300, 400, 500, 600, 700, 800]
+
+    tm_gt_cm = TrajectoryMetrics(gt_global_SE3s, aux0_global_SE3s)
+    print_trajectory_metrics(tm_gt_cm, segment_lengths, data_name="CM-gt")
+
+    # Visualise metrics
+    from pyslam.visualizers import TrajectoryVisualizer
+    output_path_for_metrics = Path(params.output_path + "visualised_metrics")
+    if output_path_for_metrics.exists() and output_path_for_metrics.is_dir():
+        shutil.rmtree(output_path_for_metrics)
+    output_path_for_metrics.mkdir(parents=True)
+
+    visualiser = TrajectoryVisualizer({"cm-gt": tm_gt_cm})
+    visualiser.plot_cum_norm_err(outfile="%s%s" % (output_path_for_metrics, "/cumulative_norm_errors.pdf"))
+    visualiser.plot_segment_errors(segs=segment_lengths,
+                                   outfile="%s%s" % (output_path_for_metrics, "/segment_errors.pdf"))
+    visualiser.plot_topdown(which_plane='yx',  # this is a custom flip to conform to MRG convention, instead of xy
+                            outfile="%s%s" % (output_path_for_metrics, "/topdown.pdf"), figsize=(10, 10))
+
+
+def print_trajectory_metrics(tm_gt_est, segment_lengths, data_name="this"):
+    print("\nTrajectory Metrics for", data_name, "set:")
+    # print("endpoint_error:", tm_gt_est.endpoint_error(segment_lengths))
+    # print("segment_errors:", tm_gt_est.segment_errors(segment_lengths))
+    # print("traj_errors:", tm_gt_est.traj_errors())
+    # print("rel_errors:", tm_gt_est.rel_errors())
+    # print("error_norms:", tm_gt_est.error_norms())
+    print("mean_err:", tm_gt_est.mean_err())
+    # print("cum_err:", tm_gt_est.cum_err())
+    print("rms_err:", tm_gt_est.rms_err())
 
 
 if __name__ == "__main__":
@@ -79,5 +139,8 @@ if __name__ == "__main__":
 
     # --input_path /workspace/data/RadarDataLogs/2019-01-10-14-50-05-radar-oxford-10k/gt/radar_odometry.csv
     # --output_path /workspace/data/landmark-distortion/cme_ground_truth/
-    get_cme_parameters(params)
+    # --num_samples 6900
+    se3s_from_cm_parameters = get_cme_parameters(params)
+    check_metrics(se3s_from_cm_parameters, params)
+
     logger.info("Finished.")
