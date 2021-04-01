@@ -21,7 +21,7 @@ def get_cme_parameters(params):
         logger.debug(se3s[idx])
 
         se3_gt = se3s[idx]
-        th_gt = np.arccos(se3_gt[0, 0])
+        th_gt = np.arctan2(se3_gt[1, 0], se3_gt[0, 0])
         x_gt = se3_gt[0, 3]
         y_gt = se3_gt[1, 3]
 
@@ -31,7 +31,7 @@ def get_cme_parameters(params):
         se3_from_r_theta = get_transform_by_r_and_theta(r_estimate, th_gt)
         x_est = se3_from_r_theta[0, 3]
         y_est = se3_from_r_theta[1, 3]
-        th_est = np.arccos(se3_from_r_theta[0, 0])
+        th_est = np.arctan2(se3_from_r_theta[1, 0], se3_from_r_theta[0, 0])
         cme_gt_x.append(x_est)
         cme_gt_y.append(y_est)
         cme_gt_th.append(th_est)
@@ -39,12 +39,12 @@ def get_cme_parameters(params):
         logger.debug(f'Est: {x_est}, {y_est}, {th_est}')
 
     plt.figure(figsize=(15, 5))
-    dim = 400
+    dim = params.num_samples + 50
     plt.xlim(0, dim)
     plt.grid()
-    plt.plot(gt_x, '.-', label="gt_x")
-    plt.plot(gt_y, '.-', label="gt_y")
-    plt.plot(gt_th, '.-', label="gt_th")
+    plt.plot(gt_x, '+-', label="gt_x")
+    plt.plot(gt_y, '+-', label="gt_y")
+    plt.plot(gt_th, '+-', label="gt_th")
     plt.plot(cme_gt_x, '.-', label="cme_gt_x")
     plt.plot(cme_gt_y, '.-', label="cme_gt_y")
     plt.plot(cme_gt_th, '.-', label="cme_gt_th")
