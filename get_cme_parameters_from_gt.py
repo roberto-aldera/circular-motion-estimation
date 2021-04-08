@@ -1,3 +1,6 @@
+# Convert raw (unconstrained) ground truth poses into circular motion constrained poses by estimating a theta and
+# curvature value from the raw SE3, before converting back to an SE3 that now conforms.
+
 from pose_tools.pose_utils import *
 from kinematics import get_transform_by_translation_and_theta, get_transform_by_r_and_theta
 import numpy as np
@@ -8,16 +11,26 @@ import logging
 from pyslam.metrics import TrajectoryMetrics
 from pathlib import Path
 import shutil
+from dataclasses import dataclass
 
 # create logger
 logger = logging.getLogger('__name__')
 
 
-def get_cme_parameters(params):
+@dataclass
+class MotionEstimate:
+    theta: float
+    curvature: float
+    dx: float
+    dy: float
+    dth: float
+
+
+def get_cme_parameters(params, save_to_csv=True):
     se3s, timestamps = get_ground_truth_poses_from_csv(params.input_path)
 
     gt_x, gt_y, gt_th = get_x_y_th_from_se3s(se3s)
-    cme_gt_x, cme_gt_y, cme_gt_th = [], [], []
+    motion_estimates = []
     se3s_from_cm_parameters = []
 
     # Try and find a theta and curvature value that gets as close to the pose as possible
@@ -41,11 +54,12 @@ def get_cme_parameters(params):
         x_est = se3_from_r_theta[0, 3]
         y_est = se3_from_r_theta[1, 3]
         th_est = np.arctan2(se3_from_r_theta[1, 0], se3_from_r_theta[0, 0])
-        cme_gt_x.append(x_est)
-        cme_gt_y.append(y_est)
-        cme_gt_th.append(th_est)
+        motion_estimates.append(MotionEstimate(theta=th_gt, curvature=1 / r_estimate, dx=x_est, dy=y_est, dth=th_est))
         logger.debug(f'GT: {x_gt}, {y_gt}, {th_gt}')
         logger.debug(f'Est: {x_est}, {y_est}, {th_est}')
+
+    if save_to_csv:
+        save_timestamps_and_cme_to_csv(timestamps[:params.num_samples], motion_estimates, "gt", params.output_path)
 
     do_plotting = False
     if do_plotting:
@@ -67,6 +81,21 @@ def get_cme_parameters(params):
         plt.close()
 
     return se3s_from_cm_parameters
+
+
+def save_timestamps_and_cme_to_csv(timestamps, motion_estimates, pose_source, export_folder):
+    # Save poses with format: timestamp, theta, curvature, dx, dy, dth
+    with open("%s%s%s" % (export_folder, pose_source, "_poses.csv"), 'w') as poses_file:
+        wr = csv.writer(poses_file, delimiter=",")
+        th_values = [item.dth for item in motion_estimates]
+        curvature_values = [item.curvature for item in motion_estimates]
+        x_values = [item.dx for item in motion_estimates]
+        y_values = [item.dy for item in motion_estimates]
+        th_values = [item.dth for item in motion_estimates]
+        for idx in range(len(timestamps)):
+            timestamp_and_motion_estimate = [timestamps[idx], th_values[idx], curvature_values[idx], x_values[idx],
+                                             y_values[idx], th_values[idx]]
+            wr.writerow(timestamp_and_motion_estimate)
 
 
 def check_metrics(se3s_from_cm_parameters, params):
@@ -140,7 +169,7 @@ if __name__ == "__main__":
     # --input_path /workspace/data/RadarDataLogs/2019-01-10-14-50-05-radar-oxford-10k/gt/radar_odometry.csv
     # --output_path /workspace/data/landmark-distortion/cme_ground_truth/
     # --num_samples 6900
-    se3s_from_cm_parameters = get_cme_parameters(params)
-    check_metrics(se3s_from_cm_parameters, params)
+    se3s_from_cm_parameters = get_cme_parameters(params, save_to_csv=True)
+    # check_metrics(se3s_from_cm_parameters, params)
 
     logger.info("Finished.")
