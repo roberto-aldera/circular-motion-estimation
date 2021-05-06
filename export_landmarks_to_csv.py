@@ -65,7 +65,7 @@ def get_landmarks_as_matches(params, radar_state_mono, save_to_csv=True):
 
 
 def save_matched_landmarks_to_csv(matched_landmarks, idx, export_folder):
-    with open("%s%s%i%s" % (export_folder, "/matched_landmarks_", idx, ".csv"), 'w') as poses_file:
+    with open("%s%s%i%s" % (export_folder, "/training_", idx, ".csv"), 'w') as poses_file:
         wr = csv.writer(poses_file, delimiter=",")
         for i in range(len(matched_landmarks)):
             wr.writerow(matched_landmarks[i])

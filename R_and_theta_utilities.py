@@ -235,10 +235,30 @@ def single_landmark_test():
     print("x:", circular_motion_pose[0, 3])
     print("y:", circular_motion_pose[1, 3])
 
-    make_plot(landmark_1, start_position, end_position, landmark_ranges, k_radius, estimated_radius=radius)
+    make_plot(landmark_1, start_position, end_position, landmark_ranges, k_radius)
+
+
+def handcrafted_landmark_test():
+    print("Running R and theta on handcrafted data...")
+    # Get landmark position relative to robot position in range and angle
+    range_1, angle_1 = get_relative_range_and_bearing_from_x_and_y(0, 1)
+    range_2, angle_2 = get_relative_range_and_bearing_from_x_and_y(0, 1.1)
+
+    print("Range 1:", range_1)
+    print("Range 2:", range_2)
+    print("Angle 1:", angle_1 * 180 / np.pi)
+    print("Angle 2:", angle_2 * 180 / np.pi)
+
+    theta, radius = get_theta_and_radius_from_single_match(d_1=range_1, d_2=range_2, phi_1=angle_1, phi_2=angle_2)
+    print("Estimated R and theta:", radius, ",", theta * 180 / np.pi)
+
+    circular_motion_pose = get_transform_by_r_and_theta(radius, theta)
+    print("x:", circular_motion_pose[0, 3])
+    print("y:", circular_motion_pose[1, 3])
 
 
 if __name__ == "__main__":
     # single_landmark_test()
+    handcrafted_landmark_test()
     # multiple_landmarks_test()
-    debugging_from_csv_points()
+    # debugging_from_csv_points()
