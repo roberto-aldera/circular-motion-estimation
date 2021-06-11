@@ -33,7 +33,7 @@ def find_landmark_deltas(params, radar_state_mono):
 
     k_every_nth_scan = 1
     k_start_index_from_odometry = 140
-    k_plot_eigen_things = True
+    k_plot_eigen_things = False
 
     for i in range(params.num_samples):
         plt.figure(figsize=(20, 20))
@@ -140,9 +140,80 @@ def find_landmark_deltas(params, radar_state_mono):
             plt.close()
 
 
+def make_landmark_deltas_figure(params, radar_state_mono):
+    figure_path = params.input_path + "figs_matched_landmarks_subset/"
+    output_path = Path(figure_path)
+    if output_path.exists() and output_path.is_dir():
+        shutil.rmtree(output_path)
+    output_path.mkdir(parents=True)
+
+    se3s, timestamps = get_ground_truth_poses_from_csv(
+        "/workspace/data/RadarDataLogs/2019-01-10-14-50-05-radar-oxford-10k/gt/radar_odometry.csv")
+    global_pose = np.eye(4)
+
+    k_start_index_from_odometry = 140
+
+    for i in range(params.num_samples):
+        plt.figure(figsize=(10, 10))
+        dim = 100
+        plt.xlim(-dim, dim)
+        plt.ylim(-dim, dim)
+        pb_state, name_scan, _ = radar_state_mono[i + k_start_index_from_odometry]
+        ro_state = get_ro_state_from_pb(pb_state)
+        primary_landmarks = PbSerialisedPointCloudToPython(ro_state.primary_scan_landmark_set).get_xyz()
+        primary_landmarks = np.c_[
+            primary_landmarks, np.ones(len(primary_landmarks))]  # so that se3 multiplication works
+
+        relative_pose_index = i + k_start_index_from_odometry + 1
+        relative_pose_timestamp = timestamps[relative_pose_index]
+
+        # ensure timestamps are within a reasonable limit of each other (microseconds)
+        assert (ro_state.timestamp - relative_pose_timestamp) < 500
+
+        primary_landmarks = np.transpose(global_pose @ np.transpose(primary_landmarks))
+
+        secondary_landmarks = PbSerialisedPointCloudToPython(ro_state.secondary_scan_landmark_set).get_xyz()
+        selected_matches = get_matrix_from_pb(ro_state.selected_matches).astype(int)
+        selected_matches = np.reshape(selected_matches, (selected_matches.shape[1], -1))
+
+        print("Size of primary landmarks:", len(primary_landmarks))
+        print("Size of secondary landmarks:", len(secondary_landmarks))
+
+        matches_to_plot = selected_matches.astype(int)
+
+        print("Processing index: ", i)
+        # Generate some random indices to subsample matches (figure is too dense otherwise for illustration purposes)
+        num_subsamples = 300
+        sample_indices = np.random.randint(low=0, high=len(matches_to_plot), size=num_subsamples)
+
+        # plot x and y swapped around so that robot is moving forward as upward direction
+        for match_idx in sample_indices:
+            x1 = primary_landmarks[matches_to_plot[match_idx, 1], 1]
+            y1 = primary_landmarks[matches_to_plot[match_idx, 1], 0]
+            x2 = secondary_landmarks[matches_to_plot[match_idx, 0], 1]
+            y2 = secondary_landmarks[matches_to_plot[match_idx, 0], 0]
+            plt.plot(x1, y1, '+', markerfacecolor='none', markersize=5, color="tab:blue")
+            plt.plot(x2, y2, '+', markerfacecolor='none', markersize=5, color="tab:orange")
+            plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5)  # , alpha=normalised_match_weight[match_idx])
+
+        robot_element, = plt.plot(0, 0, '^', markerfacecolor="tab:green", markeredgecolor="green", markersize=10,
+                                 label="Robot")
+        p1_element, = plt.plot([], [], "+", color="tab:blue", label="Primary landmarks")
+        p2_element, = plt.plot([], [], "+", color="tab:orange", label="Secondary landmarks")
+        matches_element, = plt.plot([], [], color="k", label="Matches")
+        plt.legend(handles=[p1_element, p2_element, matches_element, robot_element])
+        plt.title("Subsample of correspondences between two sequential landmark sets")
+        plt.xlabel("Y-Position (m)")
+        plt.ylabel("X-Position (m)")
+        plt.grid()
+        plt.tight_layout()
+        plt.gca().set_aspect('equal', adjustable='box')
+        plt.savefig("%s%s%i%s" % (output_path, "/matched_landmarks_subset_", i, ".pdf"))
+        plt.close()
+
+
 def main():
     parser = ArgumentParser(add_help=False)
-    parser.add_argument('--relative_poses', type=str, default="", help='Path to relative pose file')
     parser.add_argument('--input_path', type=str, default="",
                         help='Path to folder containing required inputs')
     parser.add_argument('--num_samples', type=int, default=settings.TOTAL_SAMPLES,
@@ -157,7 +228,8 @@ def main():
     print("Number of indices in this radar odometry state monolithic:", len(radar_state_mono))
 
     # get a landmark set in and plot it
-    find_landmark_deltas(params, radar_state_mono)
+    # find_landmark_deltas(params, radar_state_mono)
+    make_landmark_deltas_figure(params, radar_state_mono)
 
 
 if __name__ == "__main__":

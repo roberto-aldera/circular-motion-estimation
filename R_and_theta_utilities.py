@@ -241,8 +241,10 @@ def single_landmark_test():
 def handcrafted_landmark_test():
     print("Running R and theta on handcrafted data...")
     # Get landmark position relative to robot position in range and angle
-    range_1, angle_1 = get_relative_range_and_bearing_from_x_and_y(0, 1)
-    range_2, angle_2 = get_relative_range_and_bearing_from_x_and_y(0, 1.1)
+    # range_1, angle_1 = get_relative_range_and_bearing_from_x_and_y(0, 1)
+    # range_2, angle_2 = get_relative_range_and_bearing_from_x_and_y(0, 1.1)
+    range_1, angle_1 = get_relative_range_and_bearing_from_x_and_y(0, 0)
+    range_2, angle_2 = get_relative_range_and_bearing_from_x_and_y(1, 1)
 
     print("Range 1:", range_1)
     print("Range 2:", range_2)
