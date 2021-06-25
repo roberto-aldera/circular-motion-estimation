@@ -34,8 +34,8 @@ def ransac_motion_estimation(params, radar_state_mono, results_path):
     poses_from_inliers = []
     timestamps_from_ro_state = []
     num_iterations = min(params.num_samples, len(radar_state_mono))
-    # pdb.set_trace()
-    for i in range(num_iterations):
+
+    for i in tqdm(range(num_iterations)):
         pb_state, name_scan, _ = radar_state_mono[i]
         ro_state = get_ro_state_from_pb(pb_state)
         timestamps_from_ro_state.append(ro_state.timestamp)
@@ -51,7 +51,6 @@ def ransac_motion_estimation(params, radar_state_mono, results_path):
         # Selected matches are those that were used by RO, best matches are for development purposes here in python land
         matches_to_plot = selected_matches.astype(int)
 
-        print("Processing index: ", i)
         P1 = []
         P2 = []
         for match_idx in range(len(matches_to_plot)):
