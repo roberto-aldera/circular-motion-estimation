@@ -96,8 +96,8 @@ def get_all_inliers_from_best_ransac_motion_estimate(P1, P2, ransac_pose_estimat
             highest_inlier_count = num_inliers
 
         model_inlier_counts.append(num_inliers)
-    print("Inliers for each model:", model_inlier_counts)
-    print("Highest inlier count:", highest_inlier_count)
+    # print("Inliers for each model:", model_inlier_counts)
+    # print("Highest inlier count:", highest_inlier_count)
     return champion_inliers
 
 

@@ -26,6 +26,16 @@ AUX5_NAME = "aux5"
 TOTAL_SAMPLES = 1
 RADAR_IMAGE_DIMENSION = 3600
 
+# RO state path
+RUNNING_ON_SERVER = False
+
+if RUNNING_ON_SERVER:
+    RO_STATE_PATH = "/Volumes/scratchdata/roberto/ro_state_files/"
+    POSE_OUTPUT_PATH = "/Volumes/scratchdata/roberto/pose-outputs/"
+else:
+    RO_STATE_PATH = "/workspace/data/landmark-distortion/ro_state_pb_developing/ro_state_files/"
+    POSE_OUTPUT_PATH = "/workspace/data/landmark-distortion/RANSAC-baseline/pose-outputs/"
+
 # Landmark paths
 ROOT_DATA_DIR = "/workspace/data/landmark-distortion/"
 RO_LANDMARKS_DIR = ROOT_DATA_DIR

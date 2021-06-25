@@ -155,7 +155,7 @@ def make_landmark_deltas_figure(params, radar_state_mono):
 
     for i in range(params.num_samples):
         plt.figure(figsize=(10, 10))
-        dim = 100
+        dim = 75
         plt.xlim(-dim, dim)
         plt.ylim(-dim, dim)
         pb_state, name_scan, _ = radar_state_mono[i + k_start_index_from_odometry]
@@ -192,15 +192,15 @@ def make_landmark_deltas_figure(params, radar_state_mono):
             y1 = primary_landmarks[matches_to_plot[match_idx, 1], 0]
             x2 = secondary_landmarks[matches_to_plot[match_idx, 0], 1]
             y2 = secondary_landmarks[matches_to_plot[match_idx, 0], 0]
-            plt.plot(x1, y1, '+', markerfacecolor='none', markersize=5, color="tab:blue")
-            plt.plot(x2, y2, '+', markerfacecolor='none', markersize=5, color="tab:orange")
-            plt.plot([x1, x2], [y1, y2], 'k', linewidth=0.5)  # , alpha=normalised_match_weight[match_idx])
+            plt.plot(x1, y1, '.', markersize=10, color="tab:blue")
+            plt.plot(x2, y2, '.', markersize=10, color="tab:orange")
+            plt.plot([x1, x2], [y1, y2], 'k', linewidth=2.0)  # , alpha=normalised_match_weight[match_idx])
 
         robot_element, = plt.plot(0, 0, '^', markerfacecolor="tab:green", markeredgecolor="green", markersize=10,
                                  label="Robot")
-        p1_element, = plt.plot([], [], "+", color="tab:blue", label="Primary landmarks")
-        p2_element, = plt.plot([], [], "+", color="tab:orange", label="Secondary landmarks")
-        matches_element, = plt.plot([], [], color="k", label="Matches")
+        p1_element, = plt.plot([], [], ".", markersize=10, color="tab:blue", label="Primary landmarks")
+        p2_element, = plt.plot([], [], ".", markersize=10, color="tab:orange", label="Secondary landmarks")
+        matches_element, = plt.plot([], [], color="k", linewidth=2.0, label="Matches")
         plt.legend(handles=[p1_element, p2_element, matches_element, robot_element])
         plt.title("Subsample of correspondences between two sequential landmark sets")
         plt.xlabel("Y-Position (m)")

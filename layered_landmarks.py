@@ -22,13 +22,15 @@ def render_landmarks(params):
     # print(se3s[0])
     global_pose = np.eye(4)
 
-    plt.figure(figsize=(20, 20))
+    plt.figure(figsize=(7, 7))
     # dim = 200
     # plt.xlim(-dim, dim)
     # plt.ylim(-dim, dim)
-
+    plt.xlim(-50, 50)
+    plt.ylim(220, 330)
+    
     k_inner_range = 20
-    k_every_nth_scan = 25
+    k_every_nth_scan = 8
     plot_as_inner_and_outer_landmarks = False
 
     for i in range(params.num_samples):
@@ -61,9 +63,9 @@ def render_landmarks(params):
                             plt.plot(landmarks[j, 1], landmarks[j, 0], 'k,')  # use ',' for pixel markers
                     plt.plot(global_pose[1, 3], global_pose[0, 3], 'b^')
                 else:
-                    p = plt.plot(landmarks[:, 1], landmarks[:, 0], '+', markerfacecolor='none', markersize=1)
+                    p = plt.plot(landmarks[:, 1], landmarks[:, 0], '+', markerfacecolor='none', markersize=2)
                     # plt.plot(landmarks[:, 1], landmarks[:, 0], ',')  # use ',' for pixel markers
-                    plt.plot(global_pose[1, 3], global_pose[0, 3], '^', color=p[-1].get_color())
+                    plt.plot(global_pose[1, 3], global_pose[0, 3], 'o', color=p[-1].get_color())
 
     # plot sensor range for Oxford radar robotcar dataset
     circle_theta = np.linspace(0, 2 * np.pi, 100)
@@ -77,8 +79,12 @@ def render_landmarks(params):
     # plt.plot(x1, x2, 'r--')
 
     plt.grid()
+    plt.title("Layered radar landmarks captured along a trajectory")
+    plt.xlabel("Y distance from origin (m)")
+    plt.ylabel("X distance from origin (m)")
     plt.gca().set_aspect('equal', adjustable='box')
-    plt.savefig("%s%s%s" % (output_path, "/landmarks_layered", ".png"))
+    plt.tight_layout()
+    plt.savefig("%s%s%s" % (output_path, "/landmarks_layered", ".pdf"))
     plt.close()
 
 
