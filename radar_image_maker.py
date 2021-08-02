@@ -20,9 +20,9 @@ from mrg.adaptors.radar import pbNavtechRawConfigToPython, pbNavtechRawScanToPyt
 def get_radar_image(params, radar_mono, config, split_data_path, idx):
     subset_start_index = params.subset_start_index
     image_dimension = params.image_dimension
-    # sensor_rotation = params.rotation_angle
-    # output_file_extension = params.output_file_extension
-    # intensity_multiplier = 2
+    sensor_rotation = params.rotation_angle
+    output_file_extension = params.output_file_extension
+    intensity_multiplier = 2
 
     scan_index = subset_start_index + idx
     pb_raw_scan, name_scan, _ = radar_mono[scan_index]
@@ -33,15 +33,15 @@ def get_radar_image(params, radar_mono, config, split_data_path, idx):
                           config.bin_size_or_resolution)
     cart_img = radar_sweep.GetCartesian(pixel_width=width, pixel_height=height, resolution=res,
                                         method='cv2', verbose=False)
-    # img = Image.fromarray(cart_img.astype(np.uint8) * intensity_multiplier, 'L')
-    # img = img.rotate(sensor_rotation)
-    # img = ImageOps.mirror(img)
-    # img_as_np_array = np.array(img)
+    img = Image.fromarray(cart_img.astype(np.uint8) * intensity_multiplier, 'L')
+    img = img.rotate(sensor_rotation)
+    img = ImageOps.mirror(img)
+    img_as_np_array = np.array(img)
 
-    # img.save("%s%s%i%s" % (split_data_path, "/", scan_index, output_file_extension))
-    # img.close()
-    # print("Generated samples up to index:", scan_index, "with dim =", image_dimension,
-    #       "and written to:", split_data_path)
+    img.save("%s%s%i%s" % (split_data_path, "/", scan_index, output_file_extension))
+    img.close()
+    print("Generated samples up to index:", scan_index, "with dim =", image_dimension,
+          "and written to:", split_data_path)
 
     # return img_as_np_array
     return cart_img
@@ -101,7 +101,7 @@ def main():
     parser.add_argument('--landmarks_path', type=str, default="",
                         help='Path to landmarks that were exported for processing')
 
-    params = parser.parse_args()
+    params = parser.parse_args() 
     print("Starting dataset generation...")
     start_time = time.time()
 
@@ -117,16 +117,16 @@ def main():
     config = pbNavtechRawConfigToPython(config_pb)
     radar_mono = IndexedMonolithic(settings.RAW_SCAN_MONOLITHIC)
 
-    landmarks_path = params.landmarks_path
-    figure_path = landmarks_path + "figs/"
-    output_path = Path(figure_path)
-    if output_path.exists() and output_path.is_dir():
-        shutil.rmtree(output_path)
-    output_path.mkdir(parents=True)
+    # landmarks_path = params.landmarks_path
+    # figure_path = landmarks_path + "figs/"
+    # output_path = Path(figure_path)
+    # if output_path.exists() and output_path.is_dir():
+    #     shutil.rmtree(output_path)
+    # output_path.mkdir(parents=True)
 
     for i in range(params.num_samples):
         radar_img = get_radar_image(params, radar_mono, config, split_data_path, i)
-        overlay_landmarks_onto_radar_image(params, radar_img, config, output_path, i)
+        # overlay_landmarks_onto_radar_image(params, radar_img, config, output_path, i)
     print("--- Radar image generation execution time: %s seconds ---" % (time.time() - start_time))
 
 

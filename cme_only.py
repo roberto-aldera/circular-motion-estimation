@@ -47,6 +47,7 @@ class CircularMotionEstimate:
 
 def circular_motion_estimation(params, radar_state_mono, results_path):
     poses_from_circular_motion = []
+    poses_from_circular_motion_SVD = []
     timestamps_from_ro_state = []
     num_iterations = min(params.num_samples, len(radar_state_mono))
     print("Running for", num_iterations, "samples")
@@ -82,6 +83,11 @@ def circular_motion_estimation(params, radar_state_mono, results_path):
 
         circular_motion_estimates = get_circular_motion_estimates_from_matches(matched_points)
 
+        # Get pose using all CME-selected points and the SVD
+        pose_from_circular_motion_SVD = get_svd_pose_from_circular_motion_estimates(matched_points,
+                                                                                    circular_motion_estimates)
+        poses_from_circular_motion_SVD.append(pose_from_circular_motion_SVD)
+
         # Useful debugging plotting to see what's going on (while keeping this function neat and tidy)
         # debugging_plotting(figure_path, index=i, circular_motion_estimates=circular_motion_estimates)
 
@@ -89,6 +95,9 @@ def circular_motion_estimation(params, radar_state_mono, results_path):
         poses_from_circular_motion.append(pose_from_circular_motion)
         logger.debug(f'Pose from circular motion: {pose_from_circular_motion}')
 
+    save_timestamps_and_x_y_th_to_csv(timestamps_from_ro_state, x_y_th=poses_from_circular_motion_SVD,
+                                      pose_source="cm_matches_svd",
+                                      export_folder=results_path)
     save_timestamps_and_x_y_th_to_csv(timestamps_from_ro_state, x_y_th=poses_from_circular_motion,
                                       pose_source="cm_matches",
                                       export_folder=results_path)
@@ -126,6 +135,29 @@ def get_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates):
     dth_value = statistics.mean([np.arctan2(motions[1, 0], motions[0, 0]) for motions in cm_poses])
 
     return [dx_value, dy_value, dth_value]
+
+
+def get_svd_pose_from_circular_motion_estimates(matched_points, circular_motion_estimates):
+    P1 = []
+    P2 = []
+    chosen_indices = []
+    thetas = [cme.theta for cme in circular_motion_estimates]
+
+    percentile_start, percentile_end = 25, 75
+    q1_theta, q3_theta = np.percentile(thetas, percentile_start), np.percentile(thetas, percentile_end)
+    logger.debug(f'Q1 and Q3 for theta: {q1_theta}, {q3_theta}')
+
+    for i in range(len(circular_motion_estimates)):
+        if (circular_motion_estimates[i].theta >= q1_theta) and (
+                circular_motion_estimates[i].theta <= q3_theta):
+            chosen_indices.append(i)
+            P1.append([matched_points[i][0], matched_points[i][2]])
+            P2.append([matched_points[i][1], matched_points[i][3]])
+
+    P1 = np.transpose(P1)
+    P2 = np.transpose(P2)
+    v, theta_R = get_motion_estimate_from_svd(P1, P2, weights=np.ones(P1.shape[1]))
+    return [v[1], v[0], -theta_R]
 
 
 def get_circular_motion_estimates_from_matches(matched_points):
