@@ -15,6 +15,7 @@ import settings
 import pdb
 import csv
 import time
+from tqdm import tqdm
 from unpack_ro_protobuf import get_ro_state_from_pb, get_matrix_from_pb
 from get_rigid_body_motion import get_motion_estimate_from_svd
 from ransac_utilities import get_pose_estimates_with_ransac, get_best_ransac_motion_estimate_index, \
@@ -34,6 +35,7 @@ def ransac_motion_estimation(params, radar_state_mono, results_path):
     poses_from_inliers = []
     timestamps_from_ro_state = []
     num_iterations = min(params.num_samples, len(radar_state_mono))
+    print("Running for", num_iterations, "samples")
 
     for i in tqdm(range(num_iterations)):
         pb_state, name_scan, _ = radar_state_mono[i]
@@ -79,10 +81,10 @@ def ransac_motion_estimation(params, radar_state_mono, results_path):
         v, theta_R = get_motion_estimate_from_svd(P1_inliers, P2_inliers, weights=np.ones(P1_inliers.shape[1]))
         pose_from_svd = [v[1], v[0], -theta_R]  # this line applies the transform to get into the robot frame
         poses_from_inliers.append(pose_from_svd)
-        print("Pose from SVD on best inliers:", pose_from_svd)
+        # print("Pose from SVD on best inliers:", pose_from_svd)
 
     save_timestamps_and_x_y_th_to_csv(timestamps_from_ro_state, x_y_th=poses_from_inliers,
-                                      pose_source="inliers",
+                                      pose_source="ransac",
                                       export_folder=results_path)
 
 
