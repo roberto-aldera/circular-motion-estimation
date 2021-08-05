@@ -110,7 +110,7 @@ def get_dx_dy_dth_from_circular_motion_estimates(circular_motion_estimates):
     # sd_theta = np.std(thetas)
     # lower_theta_bound = np.mean(thetas) - sd_theta
     # upper_theta_bound = np.mean(thetas) + sd_theta
-    percentile_start, percentile_end = 25, 75
+    percentile_start, percentile_end = 35, 65
     q1_theta, q3_theta = np.percentile(thetas, percentile_start), np.percentile(thetas, percentile_end)
     logger.debug(f'Q1 and Q3 for theta: {q1_theta}, {q3_theta}')
 
@@ -143,7 +143,7 @@ def get_svd_pose_from_circular_motion_estimates(matched_points, circular_motion_
     chosen_indices = []
     thetas = [cme.theta for cme in circular_motion_estimates]
 
-    percentile_start, percentile_end = 25, 75
+    percentile_start, percentile_end = 35, 65
     q1_theta, q3_theta = np.percentile(thetas, percentile_start), np.percentile(thetas, percentile_end)
     logger.debug(f'Q1 and Q3 for theta: {q1_theta}, {q3_theta}')
 

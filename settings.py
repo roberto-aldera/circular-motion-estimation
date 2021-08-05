@@ -23,7 +23,7 @@ AUX4_NAME = "cm-kde"
 AUX5_NAME = "aux5"
 
 # General dataset parameters
-TOTAL_SAMPLES = 1
+TOTAL_SAMPLES = 10000
 RADAR_IMAGE_DIMENSION = 3600
 
 # RO state path

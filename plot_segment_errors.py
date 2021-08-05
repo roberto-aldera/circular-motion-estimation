@@ -124,8 +124,8 @@ def main():
     segment_errors_folder = "/workspace/data/landmark-distortion/final-results/segment-errors/"
     ro_errors_file = segment_errors_folder + "ro.csv"
     ransac_errors_file = segment_errors_folder + "ransac.csv"
-    cc_svd_errors_file = segment_errors_folder + "cc-svd.csv"
-    cc_means_errors_file = segment_errors_folder + "cc-means.csv"
+    cc_svd_errors_file = segment_errors_folder + "35-65-percentiles/cc-svd.csv"
+    cc_means_errors_file = segment_errors_folder + "35-65-percentiles/cc-means.csv"
 
     ro_trans_err, ro_rot_err = get_segment_errors_from_csv(ro_errors_file)
     ransac_trans_err, ransac_rot_err = get_segment_errors_from_csv(ransac_errors_file)
