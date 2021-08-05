@@ -1,6 +1,7 @@
 # Convert raw (unconstrained) ground truth poses into circular motion constrained poses by estimating a theta and
 # curvature value from the raw SE3, before converting back to an SE3 that now conforms.
 
+from tqdm import tqdm
 from pose_tools.pose_utils import *
 from kinematics import get_transform_by_translation_and_theta, get_transform_by_r_and_theta
 import numpy as np
@@ -11,6 +12,7 @@ import logging
 from pyslam.metrics import TrajectoryMetrics
 from pathlib import Path
 import shutil
+import settings
 from dataclasses import dataclass
 
 # create logger
@@ -27,15 +29,17 @@ class MotionEstimate:
 
 
 def get_cme_parameters(params, save_to_csv=True):
-    se3s, timestamps = get_ground_truth_poses_from_csv(params.input_path)
+    se3s, timestamps = get_ground_truth_poses_from_csv(params.path + "/radar_odometry.csv")
 
     gt_x, gt_y, gt_th = get_x_y_th_from_se3s(se3s)
     motion_estimates = []
     se3s_from_cm_parameters = []
 
+    num_iterations = min(params.num_samples, len(timestamps))
+    print("Running for", num_iterations, "samples")
+
     # Try and find a theta and curvature value that gets as close to the pose as possible
-    for i in range(params.num_samples):
-        idx = i
+    for idx in tqdm(range(num_iterations)):
         logger.debug(se3s[idx])
 
         se3_gt = se3s[idx]
@@ -43,10 +47,11 @@ def get_cme_parameters(params, save_to_csv=True):
         x_gt = se3_gt[0, 3]
         y_gt = se3_gt[1, 3]
 
-        if th_gt != 0:
+        if th_gt != 0 and x_gt != 0:
             r_estimate = x_gt / np.sin(th_gt)
         else:
             r_estimate = np.inf
+            th_gt = 0
         logger.debug(f'R, theta estimate: {r_estimate, th_gt}')
 
         se3_from_r_theta = get_transform_by_r_and_theta(r_estimate, th_gt)
@@ -59,12 +64,12 @@ def get_cme_parameters(params, save_to_csv=True):
         logger.debug(f'Est: {x_est}, {y_est}, {th_est}')
 
     if save_to_csv:
-        save_timestamps_and_cme_to_csv(timestamps[:params.num_samples], motion_estimates, "gt", params.output_path)
+        save_timestamps_and_cme_to_csv(timestamps[:num_iterations], motion_estimates, "gt", params.path)
 
     do_plotting = False
     if do_plotting:
         plt.figure(figsize=(15, 5))
-        dim = params.num_samples + 50
+        dim = num_iterations + 50
         plt.xlim(0, dim)
         plt.grid()
         plt.plot(gt_x, '+-', label="gt_x")
@@ -77,7 +82,7 @@ def get_cme_parameters(params, save_to_csv=True):
         plt.xlabel("Sample index")
         plt.ylabel("units/sample")
         plt.legend()
-        plt.savefig("%s%s" % (params.output_path, "/pose_comparison.pdf"))
+        plt.savefig("%s%s" % (params.path, "/pose_comparison.pdf"))
         plt.close()
 
     return se3s_from_cm_parameters
@@ -99,7 +104,7 @@ def save_timestamps_and_cme_to_csv(timestamps, motion_estimates, pose_source, ex
 
 
 def check_metrics(se3s_from_cm_parameters, params):
-    gt_se3s, gt_timestamps = get_ground_truth_poses_from_csv(params.input_path)
+    gt_se3s, gt_timestamps = get_ground_truth_poses_from_csv(params.path + "/radar_odometry.csv")
 
     # making global poses from the relative poses
     gt_global_se3s = [np.identity(4)]
@@ -120,7 +125,7 @@ def check_metrics(se3s_from_cm_parameters, params):
 
     # Visualise metrics
     from pyslam.visualizers import TrajectoryVisualizer
-    output_path_for_metrics = Path(params.output_path + "visualised_metrics")
+    output_path_for_metrics = Path(params.path + "visualised_metrics")
     if output_path_for_metrics.exists() and output_path_for_metrics.is_dir():
         shutil.rmtree(output_path_for_metrics)
     output_path_for_metrics.mkdir(parents=True)
@@ -140,6 +145,7 @@ def print_trajectory_metrics(tm_gt_est, segment_lengths, data_name="this"):
     # print("traj_errors:", tm_gt_est.traj_errors())
     # print("rel_errors:", tm_gt_est.rel_errors())
     # print("error_norms:", tm_gt_est.error_norms())
+    print("average segment_error:", np.mean(tm_gt_est.segment_errors(segment_lengths, rot_unit='deg')[1], axis=0)[1:])
     print("mean_err:", tm_gt_est.mean_err())
     # print("cum_err:", tm_gt_est.cum_err())
     print("rms_err:", tm_gt_est.rms_err())
@@ -147,11 +153,9 @@ def print_trajectory_metrics(tm_gt_est, segment_lengths, data_name="this"):
 
 if __name__ == "__main__":
     parser = ArgumentParser(add_help=False)
-    parser.add_argument('--input_path', type=str, default="",
+    parser.add_argument('--path', type=str, default=settings.RO_STATE_PATH,
                         help='Path to folder containing required inputs')
-    parser.add_argument('--output_path', type=str, default="",
-                        help='Path to folder where outputs will be saved')
-    parser.add_argument('--num_samples', type=int, default=100,
+    parser.add_argument('--num_samples', type=int, default=settings.TOTAL_SAMPLES,
                         help='Number of samples to process')
     parser.add_argument('--verbose', type=int, default=0,
                         help='Logging level')
