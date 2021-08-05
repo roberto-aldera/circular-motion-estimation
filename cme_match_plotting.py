@@ -34,6 +34,9 @@ from mrg.pointclouds.classes import PointCloud
 # create logger
 logger = logging.getLogger('__name__')
 
+plt.rc('text', usetex=False)
+plt.rc('font', family='serif')
+
 
 @dataclass
 class CircularMotionEstimate:
@@ -50,11 +53,11 @@ def make_landmark_deltas_figure(params, radar_state_mono, results_path):
         "/workspace/data/RadarDataLogs/2019-01-10-14-50-05-radar-oxford-10k/gt/radar_odometry.csv")
     global_pose = np.eye(4)
 
-    k_start_index_from_odometry = 160
+    k_start_index_from_odometry = 260
 
     for i in range(params.num_samples):
-        plt.figure(figsize=(10, 10))
-        dim = 75
+        plt.figure(figsize=(8, 8))
+        dim = 60
         plt.xlim(-dim, dim)
         plt.ylim(-dim, dim)
         pb_state, name_scan, _ = radar_state_mono[i + k_start_index_from_odometry]
@@ -110,10 +113,11 @@ def make_landmark_deltas_figure(params, radar_state_mono, results_path):
             y2 = secondary_landmarks[matches_to_plot[match_idx, 0], 0]
             plt.plot(x1, y1, 'o', markersize=5, markerfacecolor='none', color="tab:blue")
             plt.plot(x2, y2, 'o', markersize=5, markerfacecolor='none', color="tab:orange")
-            if match_idx in chosen_indices:
-                plt.plot([x1, x2], [y1, y2], 'g', linewidth=2.0)  # , alpha=normalised_match_weight[match_idx])
-            else:
-                plt.plot([x1, x2], [y1, y2], 'r', linewidth=2.0)  # , alpha=normalised_match_weight[match_idx])
+            plt.plot([x1, x2], [y1, y2], 'k', linewidth=2.0)
+            # if match_idx in chosen_indices:
+            #     plt.plot([x1, x2], [y1, y2], 'g', linewidth=2.0)  # , alpha=normalised_match_weight[match_idx])
+            # else:
+            #     plt.plot([x1, x2], [y1, y2], 'r', linewidth=2.0)  # , alpha=normalised_match_weight[match_idx])
 
         robot_element, = plt.plot(0, 0, '^', markerfacecolor="tab:green", markeredgecolor="green", markersize=10,
                                   label="Robot")
@@ -121,7 +125,7 @@ def make_landmark_deltas_figure(params, radar_state_mono, results_path):
         p2_element, = plt.plot([], [], ".", markersize=10, color="tab:orange", label="Secondary landmarks")
         matches_element, = plt.plot([], [], color="k", linewidth=2.0, label="Matches")
         plt.legend(handles=[p1_element, p2_element, matches_element, robot_element])
-        plt.title("Subsample of correspondences between two sequential landmark sets")
+        plt.title("Correspondences between two sequential landmark sets")
         plt.xlabel("Y-Position (m)")
         plt.ylabel("X-Position (m)")
         plt.grid()

@@ -1,3 +1,4 @@
+#  python plot_xyth.py --path /workspace/data/landmark-distortion/final-results/2019-01-10-14-50-05 --num_samples 2000
 import numpy as np
 from pathlib import Path
 import shutil
@@ -34,7 +35,9 @@ def make_plot(params, gt_x_y_th, aux0_x_y_th, aux1_x_y_th):
         th1.append(float(sample[2]))
 
     import matplotlib.pyplot as plt
-    plt.figure(figsize=(8, 4))
+    plt.rc('text', usetex=False)
+    plt.rc('font', family='serif')
+    plt.figure(figsize=(9, 4))
     start_idx = 0
     plt.xlim(start_idx, start_idx + params.num_samples)
     plt.grid()
@@ -131,7 +134,7 @@ def main():
     _, aux0_x_y_th = get_timestamps_and_x_y_th_from_csv(
         "/workspace/data/landmark-distortion/final-results/2019-01-10-14-50-05/full_matches_poses.csv")
     _, aux1_x_y_th = get_timestamps_and_x_y_th_from_csv(
-        "/workspace/data/landmark-distortion/final-results/2019-01-10-14-50-05/cm_matches_poses.csv")
+        "/workspace/data/landmark-distortion/final-results/2019-01-10-14-50-05/35-65-percentiles/cm_matches_poses.csv")
 
     make_plot(params, gt_x_y_th, aux0_x_y_th, aux1_x_y_th)
 
