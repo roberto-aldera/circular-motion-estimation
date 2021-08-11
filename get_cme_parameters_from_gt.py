@@ -30,7 +30,7 @@ class MotionEstimate:
 
 def get_cme_parameters(params, save_to_csv=True):
     se3s, timestamps = get_ground_truth_poses_from_csv(params.path + "/radar_odometry.csv")
-
+    # pdb.set_trace()
     gt_x, gt_y, gt_th = get_x_y_th_from_se3s(se3s)
     motion_estimates = []
     se3s_from_cm_parameters = []
@@ -90,6 +90,7 @@ def get_cme_parameters(params, save_to_csv=True):
 
 def save_timestamps_and_cme_to_csv(timestamps, motion_estimates, pose_source, export_folder):
     # Save poses with format: timestamp, theta, curvature, dx, dy, dth
+    print("Saving poses to:", export_folder)
     with open("%s%s%s" % (export_folder, pose_source, "_poses.csv"), 'w') as poses_file:
         wr = csv.writer(poses_file, delimiter=",")
         th_values = [item.dth for item in motion_estimates]

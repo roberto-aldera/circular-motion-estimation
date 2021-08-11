@@ -57,7 +57,7 @@ def make_landmark_deltas_figure(params, radar_state_mono, results_path):
 
     for i in range(params.num_samples):
         plt.figure(figsize=(8, 8))
-        dim = 60
+        dim = 40
         plt.xlim(-dim, dim)
         plt.ylim(-dim, dim)
         pb_state, name_scan, _ = radar_state_mono[i + k_start_index_from_odometry]
@@ -104,31 +104,43 @@ def make_landmark_deltas_figure(params, radar_state_mono, results_path):
         # plot x and y swapped around so that robot is moving forward as upward direction
         for match_idx in range(len(matches_to_plot)):  # chosen_indices:  # sample_indices:
             # if match_idx in sample_indices:
-                # if match_idx in chosen_indices:
-                # for match_idx in chosen_indices:  # sample_indices:
-    
+            # if match_idx in chosen_indices:
+            # for match_idx in chosen_indices:  # sample_indices:
             x1 = primary_landmarks[matches_to_plot[match_idx, 1], 1]
             y1 = primary_landmarks[matches_to_plot[match_idx, 1], 0]
             x2 = secondary_landmarks[matches_to_plot[match_idx, 0], 1]
             y2 = secondary_landmarks[matches_to_plot[match_idx, 0], 0]
-            plt.plot(x1, y1, 'o', markersize=5, markerfacecolor='none', color="tab:blue")
-            plt.plot(x2, y2, 'o', markersize=5, markerfacecolor='none', color="tab:orange")
-            plt.plot([x1, x2], [y1, y2], 'k', linewidth=2.0)
-            # if match_idx in chosen_indices:
-            #     plt.plot([x1, x2], [y1, y2], 'g', linewidth=2.0)  # , alpha=normalised_match_weight[match_idx])
-            # else:
-            #     plt.plot([x1, x2], [y1, y2], 'r', linewidth=2.0)  # , alpha=normalised_match_weight[match_idx])
+
+            do_red_green_plots = False
+            if do_red_green_plots:
+                if match_idx in chosen_indices:
+                    plt.plot([x1, x2], [y1, y2], 'g', linewidth=2.0)  # , alpha=normalised_match_weight[match_idx])
+                    # continue
+                else:
+                    plt.plot(x1, y1, 'o', markersize=5, markerfacecolor='none', color="tab:blue")
+                    plt.plot(x2, y2, 'o', markersize=5, markerfacecolor='none', color="tab:orange")
+                    plt.plot([x1, x2], [y1, y2], 'r', linewidth=2.0)  # , alpha=normalised_match_weight[match_idx])
+            else:
+                plt.plot(x1, y1, 'o', markersize=5, markerfacecolor='none', color="tab:blue")
+                plt.plot(x2, y2, 'o', markersize=5, markerfacecolor='none', color="tab:orange")
+                plt.plot([x1, x2], [y1, y2], 'k', linewidth=2.0)
 
         robot_element, = plt.plot(0, 0, '^', markerfacecolor="tab:green", markeredgecolor="green", markersize=10,
                                   label="Robot")
         p1_element, = plt.plot([], [], ".", markersize=10, color="tab:blue", label="Primary landmarks")
         p2_element, = plt.plot([], [], ".", markersize=10, color="tab:orange", label="Secondary landmarks")
         matches_element, = plt.plot([], [], color="k", linewidth=2.0, label="Matches")
-        plt.legend(handles=[p1_element, p2_element, matches_element, robot_element])
-        plt.title("Correspondences between two sequential landmark sets")
-        plt.xlabel("Y-Position (m)")
-        plt.ylabel("X-Position (m)")
+        font_size = 16
+
+        plot_with_labels = False
+        if plot_with_labels:
+            plt.legend(handles=[p1_element, p2_element, matches_element, robot_element], fontsize=font_size)
+            plt.title("Correspondences between two sequential landmark sets", fontsize=font_size)
+            plt.xlabel("Y-Position (m)", fontsize=font_size)
+            plt.ylabel("X-Position (m)", fontsize=font_size)
         plt.grid()
+        plt.xticks(fontsize=font_size)
+        plt.yticks(fontsize=font_size)
         plt.tight_layout()
         plt.gca().set_aspect('equal', adjustable='box')
         plt.savefig("%s%s%i%s" % (results_path, "/matched_landmarks_subset_", i, ".pdf"))
@@ -241,6 +253,7 @@ def main():
     current_time = time.strftime("%Y-%m-%d-%H-%M-%S", time.gmtime())
     results_path = params.input_path + current_time + "/"
     Path(results_path).mkdir(parents=True, exist_ok=True)
+    print("Results to be stored in:", results_path)
 
     # circular_motion_estimation(params, radar_state_mono, results_path)
     make_landmark_deltas_figure(params, radar_state_mono, results_path)

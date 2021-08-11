@@ -33,7 +33,7 @@ if RUNNING_ON_SERVER:
     RO_STATE_PATH = "/Volumes/scratchdata/roberto/ro_state_files/"
     POSE_OUTPUT_PATH = "/Volumes/scratchdata/roberto/pose-outputs/"
 else:
-    RO_STATE_PATH = "/workspace/data/ro-state-files/radar_oxford_10k/2019-01-10-15-19-41/"
+    RO_STATE_PATH = "/workspace/data/ro-state-files/radar_oxford_10k/2019-01-10-14-50-05/"
     POSE_OUTPUT_PATH = RO_STATE_PATH
     # POSE_OUTPUT_PATH = "/workspace/data/landmark-distortion/RANSAC-baseline/pose-outputs/"
 
