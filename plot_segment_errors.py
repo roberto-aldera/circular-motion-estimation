@@ -49,7 +49,9 @@ def make_plot(params, ro_trans_err, ro_rot_err, ransac_trans_err, ransac_rot_err
     import matplotlib.pyplot as plt
     plt.rc('text', usetex=False)
     plt.rc('font', family='serif')
-    fig, ax = plt.subplots(1, 2, figsize=(10, 4))
+    font_size = 16
+
+    fig, ax = plt.subplots(1, 2, figsize=(12, 4))
 
     ax[0].plot(segment_lengths, ro_trans_means, "^-", color="tab:blue", label="RO")
     ax[0].fill_between(segment_lengths, ro_trans_means - ro_trans_std, ro_trans_means + ro_trans_std, color="tab:blue",
@@ -65,10 +67,12 @@ def make_plot(params, ro_trans_err, ro_rot_err, ransac_trans_err, ransac_rot_err
                        cc_mean_trans_means + cc_mean_trans_std, color="tab:red", alpha=alpha)
 
     ax[0].grid()
-    ax[0].set_title("Translational error")
-    ax[0].set_xlabel("Segment length (m)")
-    ax[0].set_ylabel("Average error (%)")
-    ax[0].legend()
+    ax[0].set_title("Translational error", fontsize=font_size)
+    ax[0].set_xlabel("Segment length (m)", fontsize=font_size)
+    ax[0].set_ylabel("Average error (%)", fontsize=font_size)
+    ax[0].legend(fontsize=font_size)
+    ax[0].tick_params(axis='x', labelsize=font_size)
+    ax[0].tick_params(axis='y', labelsize=font_size)
 
     ax[1].plot(segment_lengths, ro_rot_means, "^-", color="tab:blue", label="RO")
     ax[1].fill_between(segment_lengths, ro_rot_means - ro_rot_std, ro_rot_means + ro_rot_std, color="tab:blue",
@@ -84,10 +88,12 @@ def make_plot(params, ro_trans_err, ro_rot_err, ransac_trans_err, ransac_rot_err
                        color="tab:red", alpha=alpha)
 
     ax[1].grid()
-    ax[1].set_title("Rotational error")
-    ax[1].set_xlabel("Segment length (m)")
-    ax[1].set_ylabel("Average error (deg/m)")
+    ax[1].set_title("Rotational error", fontsize=font_size)
+    ax[1].set_xlabel("Segment length (m)", fontsize=font_size)
+    ax[1].set_ylabel("Average error (deg/m)", fontsize=font_size)
 
+    ax[1].tick_params(axis='x', labelsize=font_size)
+    ax[1].tick_params(axis='y', labelsize=font_size)
     fig.tight_layout()
     figure_path = "%s%s" % (output_path, "/segment_errors.pdf")
     fig.savefig(figure_path)

@@ -70,6 +70,59 @@ def make_plot(params, gt_x_y_th, aux0_x_y_th, aux1_x_y_th):
     print("Saved figure to:", figure_path)
 
 
+def make_y_only_plot(params, gt_x_y_th, aux0_x_y_th, aux1_x_y_th):
+    figure_path = Path(params.path) / "figs_odometry"
+    output_path = Path(figure_path)
+    if output_path.exists() and output_path.is_dir():
+        shutil.rmtree(output_path)
+    output_path.mkdir(parents=True)
+
+    x0 = []
+    y0 = []
+    th0 = []
+    for sample in aux0_x_y_th:
+        x0.append(float(sample[0]))
+        y0.append(float(sample[1]))
+        th0.append(float(sample[2]))
+
+    x1 = []
+    y1 = []
+    th1 = []
+    for sample in aux1_x_y_th:
+        x1.append(float(sample[0]))
+        y1.append(float(sample[1]))
+        th1.append(float(sample[2]))
+
+    import matplotlib.pyplot as plt
+    font_size = 16
+    plt.rc('text', usetex=False)
+    plt.rc('font', family='serif')
+    plt.figure(figsize=(9, 4))
+    start_idx = 0
+    plt.xlim(start_idx, start_idx + params.num_samples)
+    plt.xticks(fontsize=font_size)
+    plt.yticks(fontsize=font_size)
+    plt.grid()
+    m_size = 3
+    line_width = 0.3
+    mew = 0.5  # marker edge width
+
+    plt.plot(np.array(y0), 'o', color="tab:red", linewidth=line_width, markersize=m_size, mew=mew, label="RO")
+    plt.plot(np.array(y1), 'o', color="tab:blue", linewidth=line_width, markersize=m_size, mew=mew, label="CC-means")
+    plt.plot(np.array(gt_x_y_th[1]), '-', color="black", linewidth=1.5, markersize=m_size, mew=mew,
+             label="GT")
+
+    plt.title("Comparison of lateral motion estimates", fontsize=font_size)
+    plt.xlabel("Sample index", fontsize=font_size)
+    plt.ylabel("m/sample", fontsize=font_size)
+    plt.legend()
+    plt.tight_layout()
+    figure_path = "%s%s" % (output_path, "/xyth_comparison.pdf")
+    plt.savefig(figure_path)
+    plt.close()
+    print("Saved figure to:", figure_path)
+
+
 def get_ground_truth_poses_from_csv(path_to_gt_csv):
     """
     Load poses from csv for the Oxford radar robotcar 10k dataset.
@@ -136,7 +189,7 @@ def main():
     _, aux1_x_y_th = get_timestamps_and_x_y_th_from_csv(
         "/workspace/data/landmark-distortion/final-results/2019-01-10-14-50-05/35-65-percentiles/cm_matches_poses.csv")
 
-    make_plot(params, gt_x_y_th, aux0_x_y_th, aux1_x_y_th)
+    make_y_only_plot(params, gt_x_y_th, aux0_x_y_th, aux1_x_y_th)
 
 
 if __name__ == "__main__":
