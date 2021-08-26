@@ -114,7 +114,7 @@ def make_y_only_plot(params, gt_x_y_th, aux0_x_y_th, aux1_x_y_th):
 
     plt.title("Comparison of lateral motion estimates", fontsize=font_size)
     plt.xlabel("Sample index", fontsize=font_size)
-    plt.ylabel("m/sample", fontsize=font_size)
+    plt.ylabel("Displacement (m)", fontsize=font_size)
     plt.legend()
     plt.tight_layout()
     figure_path = "%s%s" % (output_path, "/xyth_comparison.pdf")
