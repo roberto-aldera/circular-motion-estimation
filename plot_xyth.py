@@ -5,10 +5,10 @@ import shutil
 from argparse import ArgumentParser
 import settings
 import pdb
-from pyslam.metrics import TrajectoryMetrics
+# from pyslam.metrics import TrajectoryMetrics
 import pandas as pd
 import csv
-from liegroups import SE3
+# from liegroups import SE3
 
 
 def make_plot(params, gt_x_y_th, aux0_x_y_th, aux1_x_y_th):
@@ -97,6 +97,8 @@ def make_y_only_plot(params, gt_x_y_th, aux0_x_y_th, aux1_x_y_th):
     font_size = 16
     plt.rc('text', usetex=False)
     plt.rc('font', family='serif')
+    plt.rcParams['pdf.fonttype'] = 42
+    plt.rcParams['ps.fonttype'] = 42
     plt.figure(figsize=(9, 4))
     start_idx = 0
     plt.xlim(start_idx, start_idx + params.num_samples)
@@ -174,20 +176,20 @@ def main():
     parser = ArgumentParser(add_help=False)
     parser.add_argument('--path', type=str, default="",
                         help='Path to folder where inputs are and where outputs will be saved')
-    parser.add_argument('--num_samples', type=int, default=200,
+    parser.add_argument('--num_samples', type=int, default=1000,
                         help='Number of samples to process')
     params = parser.parse_args()
 
     print("Running script...")
 
     gt_se3s, gt_timestamps, gt_x_y_th = get_ground_truth_poses_from_csv(
-        "/workspace/data/ro-state-files/radar_oxford_10k/2019-01-10-14-50-05/radar_odometry.csv")
+        "/Users/roberto/data/ro-state-files/radar_oxford_10k/2019-01-10-14-50-05/radar_odometry.csv")
     # gt_se3s = gt_se3s[settings.K_RADAR_INDEX_OFFSET:]
 
     _, aux0_x_y_th = get_timestamps_and_x_y_th_from_csv(
-        "/workspace/data/landmark-distortion/final-results/2019-01-10-14-50-05/full_matches_poses.csv")
+        "/Users/roberto/data/landmark-distortion/final-results/2019-01-10-14-50-05/full_matches_poses.csv")
     _, aux1_x_y_th = get_timestamps_and_x_y_th_from_csv(
-        "/workspace/data/landmark-distortion/final-results/2019-01-10-14-50-05/35-65-percentiles/cm_matches_poses.csv")
+        "/Users/roberto/data/landmark-distortion/final-results/2019-01-10-14-50-05/35-65-percentiles/cm_matches_poses.csv")
 
     make_y_only_plot(params, gt_x_y_th, aux0_x_y_th, aux1_x_y_th)
 

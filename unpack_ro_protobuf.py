@@ -4,9 +4,9 @@ import numpy as np
 from argparse import ArgumentParser
 
 # Include paths - need these for interfacing with custom protobufs
-sys.path.insert(-1, "/workspace/code/corelibs/src/tools-python")
-sys.path.insert(-1, "/workspace/code/corelibs/build/datatypes")
-sys.path.insert(-1, "/workspace/code/radar-navigation/build/radarnavigation_datatypes_python")
+sys.path.insert(-1, "/Users/roberto/code/corelibs/src/tools-python")
+sys.path.insert(-1, "/Users/roberto/code/corelibs/build/datatypes")
+sys.path.insert(-1, "/Users/roberto/code/radar-navigation/build/radarnavigation_datatypes_python")
 
 from mrg.logging.indexed_monolithic import IndexedMonolithic
 from mrg.adaptors.pointcloud import PbSerialisedPointCloudToPython

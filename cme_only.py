@@ -53,7 +53,7 @@ def circular_motion_estimation(params, radar_state_mono, results_path):
     print("Running for", num_iterations, "samples")
 
     for i in tqdm(range(num_iterations)):
-        pb_state, name_scan, _ = radar_state_mono[i]
+        pb_state, name_scan, _ = radar_state_mono[i + 0]
         ro_state = get_ro_state_from_pb(pb_state)
         timestamps_from_ro_state.append(ro_state.timestamp)
 
@@ -82,6 +82,9 @@ def circular_motion_estimation(params, radar_state_mono, results_path):
             matched_points.append([x1, x2, y1, y2])
 
         circular_motion_estimates = get_circular_motion_estimates_from_matches(matched_points)
+
+        # Theta plotting for figure exports
+        theta_plotting(circular_motion_estimates, results_path)
 
         # Get pose using all CME-selected points and the SVD
         pose_from_circular_motion_SVD = get_svd_pose_from_circular_motion_estimates(matched_points,
@@ -192,6 +195,65 @@ def save_timestamps_and_x_y_th_to_csv(timestamps, x_y_th, pose_source, export_fo
         for idx in range(len(timestamps)):
             timestamp_and_x_y_th = [timestamps[idx], x_values[idx], y_values[idx], th_values[idx]]
             wr.writerow(timestamp_and_x_y_th)
+
+
+def theta_plotting(circular_motion_estimates, results_path):
+    chosen_indices_35_65 = []
+    thetas = [cme.theta for cme in circular_motion_estimates]
+    sorted_thetas = np.sort(thetas)
+    sample_indices = np.arange(0, len(sorted_thetas))
+
+    q1_theta, q3_theta = np.percentile(thetas, 35), np.percentile(thetas, 65)
+    for i in range(len(circular_motion_estimates)):
+        if (sorted_thetas[i] >= q1_theta) and (sorted_thetas[i] <= q3_theta):
+            chosen_indices_35_65.append(i)
+
+    inner_thetas_35_65 = np.array(sorted_thetas)
+    notIndex = np.array([i for i in sample_indices if i not in chosen_indices_35_65])
+    inner_thetas_35_65[notIndex] = np.nan
+
+    chosen_indices_1_std_dev = []
+    mean_theta = np.mean(thetas)
+    std_dev_theta = np.std(thetas)
+    upper_bound = mean_theta + std_dev_theta
+    lower_bound = mean_theta - std_dev_theta
+    for i in range(len(circular_motion_estimates)):
+        if (sorted_thetas[i] >= lower_bound) and (sorted_thetas[i] <= upper_bound):
+            chosen_indices_1_std_dev.append(i)
+
+    inner_thetas_1_std_dev = np.array(sorted_thetas)
+    notIndex = np.array([i for i in sample_indices if i not in chosen_indices_1_std_dev])
+    inner_thetas_1_std_dev[notIndex] = np.nan
+
+    # Plot thetas here for generating figures
+    font_size = 16
+    marker_size = 3
+    line_width = 3
+    plt.rc('text', usetex=False)
+    plt.rc('font', family='serif')
+    plt.figure(figsize=(10, 5))
+    plt.xticks(fontsize=font_size)
+    plt.yticks(fontsize=font_size)
+    plt.grid()
+
+    plt.plot(sample_indices, sorted_thetas, 'o', color="tab:red", ms=marker_size, label="Sorted thetas")
+    # plt.plot(sample_indices, inner_thetas_1_std_dev, ',', color="tab:green", ms=marker_size, label="Std Dev thetas")
+    # plt.plot(sample_indices, inner_thetas_35_65, 'x', color="tab:blue", ms=marker_size, label="IQR thetas")
+    plt.vlines([np.min(chosen_indices_1_std_dev), np.max(chosen_indices_1_std_dev)], ymin=-1, ymax=1,
+               linestyles='dashed', color="tab:green", lw=line_width, label="1σ limits")
+    plt.vlines([np.min(chosen_indices_35_65), np.max(chosen_indices_35_65)], ymin=-1, ymax=1, linestyles='dashed',
+               color="tab:blue", lw=line_width, label="Quantile limits")
+    plt.title("Subset selection based on θ-values", fontsize=font_size)
+    plt.xlabel("Sample index", fontsize=font_size)
+    plt.ylabel("Theta (rad)", fontsize=font_size)
+    plt.ylim(-0.25, 0.25)
+    plt.legend()
+    plt.tight_layout()
+    figure_path = "%s%s" % (results_path, "sorted_thetas.pdf")
+    plt.savefig(figure_path)
+    plt.close()
+    print("Saved figure to:", figure_path)
+    pdb.set_trace()
 
 
 def main():

@@ -15,12 +15,16 @@ AUX1_COLOUR = "tab:red"
 K_RADAR_INDEX_OFFSET = 0
 
 # Aux names
-AUX0_NAME = "ransac-inliers-svd"
-AUX1_NAME = "cm-iqr-thetas"
-AUX2_NAME = "cm-iqr-curvature"
-AUX3_NAME = "cm-iqr-both"
-AUX4_NAME = "cm-kde"
-AUX5_NAME = "aux5"
+# AUX0_NAME = "ransac-inliers-svd"
+# AUX1_NAME = "cm-iqr-thetas"
+# AUX2_NAME = "cm-iqr-curvature"
+# AUX3_NAME = "cm-iqr-both"
+# AUX4_NAME = "cm-kde"
+# AUX5_NAME = "aux5"
+
+AUX0_NAME = "RANSAC"
+AUX1_NAME = "CC-SVD"
+AUX2_NAME = "CC-means"
 
 # General dataset parameters
 TOTAL_SAMPLES = 10000
@@ -33,7 +37,7 @@ if RUNNING_ON_SERVER:
     RO_STATE_PATH = "/Volumes/scratchdata/roberto/ro_state_files/"
     POSE_OUTPUT_PATH = "/Volumes/scratchdata/roberto/pose-outputs/"
 else:
-    RO_STATE_PATH = "/workspace/data/ro-state-files/radar_oxford_10k/2019-01-10-14-50-05/"
+    RO_STATE_PATH = "/workspace/data/ro-state-files/radar_oxford_10k/2019-01-10-11-46-21/"
     POSE_OUTPUT_PATH = RO_STATE_PATH
     # POSE_OUTPUT_PATH = "/workspace/data/landmark-distortion/RANSAC-baseline/pose-outputs/"
 

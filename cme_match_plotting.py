@@ -23,9 +23,9 @@ from kinematics import get_transform_by_r_and_theta
 from pose_tools.pose_utils import *
 
 # Include paths - need these for interfacing with custom protobufs
-sys.path.insert(-1, "/workspace/code/corelibs/src/tools-python")
-sys.path.insert(-1, "/workspace/code/corelibs/build/datatypes")
-sys.path.insert(-1, "/workspace/code/radar-navigation/build/radarnavigation_datatypes_python")
+sys.path.insert(-1, "/Users/roberto/code/corelibs/src/tools-python")
+sys.path.insert(-1, "/Users/roberto/code/corelibs/build/datatypes")
+sys.path.insert(-1, "/Users/roberto/code/radar-navigation/build/radarnavigation_datatypes_python")
 
 from mrg.logging.indexed_monolithic import IndexedMonolithic
 from mrg.adaptors.pointcloud import PbSerialisedPointCloudToPython
@@ -36,7 +36,8 @@ logger = logging.getLogger('__name__')
 
 plt.rc('text', usetex=False)
 plt.rc('font', family='serif')
-
+plt.rcParams['pdf.fonttype'] = 42
+plt.rcParams['ps.fonttype'] = 42
 
 @dataclass
 class CircularMotionEstimate:
@@ -150,7 +151,7 @@ def make_landmark_deltas_figure(params, radar_state_mono, results_path):
 # Similar to function make_landmark_deltas_figure but with an added inset just to clarify a figure in the paper
 def make_landmark_deltas_figure_with_inset(params, radar_state_mono, results_path):
     se3s, timestamps = get_ground_truth_poses_from_csv(
-        "/workspace/data/RadarDataLogs/2019-01-10-14-50-05-radar-oxford-10k/gt/radar_odometry.csv")
+        "/Users/roberto/data/RadarDataLogs/2019-01-10-14-50-05-radar-oxford-10k/gt/radar_odometry.csv")
     global_pose = np.eye(4)
 
     k_start_index_from_odometry = 370
@@ -171,7 +172,7 @@ def make_landmark_deltas_figure_with_inset(params, radar_state_mono, results_pat
         y_end = 28
 
         # Make the zoom-in plot:
-        axins = zoomed_inset_axes(ax, 5, loc='center right')
+        axins = zoomed_inset_axes(ax, 5, loc='lower right')
         axins.set_xlim(x_start, x_end)
         axins.set_ylim(y_start, y_end)
         plt.xticks(visible=False)

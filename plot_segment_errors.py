@@ -49,9 +49,11 @@ def make_plot(params, ro_trans_err, ro_rot_err, ransac_trans_err, ransac_rot_err
     import matplotlib.pyplot as plt
     plt.rc('text', usetex=False)
     plt.rc('font', family='serif')
+    plt.rcParams['pdf.fonttype'] = 42
+    plt.rcParams['ps.fonttype'] = 42
     font_size = 16
 
-    fig, ax = plt.subplots(1, 2, figsize=(12, 4))
+    fig, ax = plt.subplots(2, 1, figsize=(10, 8))
 
     ax[0].plot(segment_lengths, ro_trans_means, "^-", color="tab:blue", label="RO")
     ax[0].fill_between(segment_lengths, ro_trans_means - ro_trans_std, ro_trans_means + ro_trans_std, color="tab:blue",
@@ -127,7 +129,7 @@ def main():
 
     print("Running script...")
 
-    segment_errors_folder = "/workspace/data/landmark-distortion/final-results/segment-errors/"
+    segment_errors_folder = "/Users/roberto/data/landmark-distortion/final-results/segment-errors/"
     ro_errors_file = segment_errors_folder + "ro.csv"
     ransac_errors_file = segment_errors_folder + "ransac.csv"
     cc_svd_errors_file = segment_errors_folder + "35-65-percentiles/cc-svd.csv"
