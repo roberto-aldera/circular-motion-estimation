@@ -31,6 +31,9 @@ from mrg.logging.indexed_monolithic import IndexedMonolithic
 from mrg.adaptors.pointcloud import PbSerialisedPointCloudToPython
 from mrg.pointclouds.classes import PointCloud
 
+plt.rcParams['pdf.fonttype'] = 42
+plt.rcParams['ps.fonttype'] = 42
+
 # create logger
 logger = logging.getLogger('__name__')
 
@@ -53,7 +56,7 @@ def circular_motion_estimation(params, radar_state_mono, results_path):
     print("Running for", num_iterations, "samples")
 
     for i in tqdm(range(num_iterations)):
-        pb_state, name_scan, _ = radar_state_mono[i + 0]
+        pb_state, name_scan, _ = radar_state_mono[i + 310]
         ro_state = get_ro_state_from_pb(pb_state)
         timestamps_from_ro_state.append(ro_state.timestamp)
 
@@ -84,7 +87,7 @@ def circular_motion_estimation(params, radar_state_mono, results_path):
         circular_motion_estimates = get_circular_motion_estimates_from_matches(matched_points)
 
         # Theta plotting for figure exports
-        theta_plotting(circular_motion_estimates, results_path)
+        theta_plotting_for_visualisation(circular_motion_estimates, results_path)
 
         # Get pose using all CME-selected points and the SVD
         pose_from_circular_motion_SVD = get_svd_pose_from_circular_motion_estimates(matched_points,
@@ -197,7 +200,7 @@ def save_timestamps_and_x_y_th_to_csv(timestamps, x_y_th, pose_source, export_fo
             wr.writerow(timestamp_and_x_y_th)
 
 
-def theta_plotting(circular_motion_estimates, results_path):
+def theta_plotting_for_thesis(circular_motion_estimates, results_path):
     chosen_indices_35_65 = []
     thetas = [cme.theta for cme in circular_motion_estimates]
     sorted_thetas = np.sort(thetas)
@@ -253,7 +256,61 @@ def theta_plotting(circular_motion_estimates, results_path):
     plt.savefig(figure_path)
     plt.close()
     print("Saved figure to:", figure_path)
-    pdb.set_trace()
+    # pdb.set_trace()
+
+
+def theta_plotting_for_visualisation(circular_motion_estimates, results_path):
+    # Same thing in principle as the other theta_plotting function, but just with a few tweaks
+    chosen_indices_35_65 = []
+    thetas = [cme.theta for cme in circular_motion_estimates]
+    sorted_thetas = np.sort(thetas)
+    sample_indices = np.arange(0, len(sorted_thetas))
+
+    q1_theta, q3_theta = np.percentile(thetas, 35), np.percentile(thetas, 65)
+    for i in range(len(circular_motion_estimates)):
+        if (sorted_thetas[i] >= q1_theta) and (sorted_thetas[i] <= q3_theta):
+            chosen_indices_35_65.append(i)
+
+    inner_thetas_35_65 = np.array(sorted_thetas)
+    notIndex = np.array([i for i in sample_indices if i not in chosen_indices_35_65])
+    inner_thetas_35_65[notIndex] = np.nan
+
+    # Plot thetas here for generating figures
+    font_size = 16
+    marker_size = 3
+    line_width = 3
+    plt.rc('text', usetex=False)
+    plt.rc('font', family='serif')
+    plt.figure(figsize=(10, 5))
+    plt.xticks(fontsize=font_size)
+    plt.yticks(fontsize=font_size)
+
+    _, axes = plt.subplots(nrows=2, ncols=1, figsize=(10, 7))
+
+    ax = axes[0]
+    ax.set_title("Subset selection based on θ-values", fontsize=font_size)
+    ax.plot(thetas, 'o', color="tab:red", ms=marker_size, mfc="None", label="Unsorted thetas")
+    # ax.set_xlabel("Sample index", fontsize=font_size)
+    ax.set_ylabel("Theta (rad)", fontsize=font_size)
+    ax.set_ylim(-0.25, 0.25)
+    ax.legend(loc="upper left")
+    ax.grid()
+
+    ax = axes[1]
+    ax.plot(sample_indices, sorted_thetas, 'o', color="tab:red", ms=marker_size, mfc="None", label="Sorted thetas")
+    ax.vlines([np.min(chosen_indices_35_65), np.max(chosen_indices_35_65)], ymin=-1, ymax=1, linestyles='dashed',
+               color="tab:blue", lw=line_width, label="Quantile limits")
+    # ax.set_xlabel("Sample index", fontsize=font_size)
+    ax.set_ylabel("Theta (rad)", fontsize=font_size)
+    ax.set_ylim(-0.25, 0.25)
+    ax.legend(loc="upper left")
+    plt.xlabel("Sample index", fontsize=font_size)
+    ax.grid()
+    plt.tight_layout()
+    figure_path = "%s%s" % (results_path, "sorted_thetas.pdf")
+    plt.savefig(figure_path)
+    plt.close()
+    print("Saved figure to:", figure_path)
 
 
 def main():
