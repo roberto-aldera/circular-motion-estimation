@@ -94,19 +94,19 @@ def make_y_only_plot(params, gt_x_y_th, aux0_x_y_th, aux1_x_y_th):
         th1.append(float(sample[2]))
 
     import matplotlib.pyplot as plt
-    font_size = 16
+    font_size = 20
     plt.rc('text', usetex=False)
     plt.rc('font', family='serif')
     plt.rcParams['pdf.fonttype'] = 42
     plt.rcParams['ps.fonttype'] = 42
-    plt.figure(figsize=(9, 4))
+    plt.figure(figsize=(18, 5))
     start_idx = 0
     plt.xlim(start_idx, start_idx + params.num_samples)
     plt.xticks(fontsize=font_size)
     plt.yticks(fontsize=font_size)
     plt.grid()
-    m_size = 3
-    line_width = 0.3
+    m_size = 4
+    line_width = 0.4
     mew = 0.5  # marker edge width
 
     plt.plot(np.array(y0), 'o', color="tab:red", linewidth=line_width, markersize=m_size, mew=mew, label="RO")
@@ -117,7 +117,7 @@ def make_y_only_plot(params, gt_x_y_th, aux0_x_y_th, aux1_x_y_th):
     plt.title("Comparison of lateral motion estimates", fontsize=font_size)
     plt.xlabel("Sample index", fontsize=font_size)
     plt.ylabel("Displacement (m)", fontsize=font_size)
-    plt.legend()
+    plt.legend(fontsize=font_size)
     plt.tight_layout()
     figure_path = "%s%s" % (output_path, "/xyth_comparison.pdf")
     plt.savefig(figure_path)
