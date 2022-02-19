@@ -31,12 +31,6 @@ def get_metrics(params):
     _, aux2_x_y_th = get_timestamps_and_x_y_th_from_csv(
         "/Users/roberto/data/landmark-distortion/final-results/" + folder_date_name + "/35-65-percentiles/cm_matches_poses.csv")
 
-    # Landmark correction inputs to run metrics on:
-    # _, aux0_x_y_th = get_timestamps_and_x_y_th_from_circular_motion_estimate_csv(
-    #     params.path + "raw_cm_poses.csv")
-    # _, aux1_x_y_th = get_timestamps_and_x_y_th_from_circular_motion_estimate_csv(
-    #     params.path + "network_cm_poses.csv")
-
     # Cropping if necessary
     full_matches_timestamps, full_matches_x_y_th = full_matches_timestamps[:num_iterations], \
                                                    full_matches_x_y_th[:num_iterations]
@@ -104,8 +98,6 @@ def get_metrics(params):
     #                                          settings.AUX1_NAME: tm_gt_aux1, settings.AUX2_NAME: tm_gt_aux2},
     #                                 segment_lengths)
 
-    # save_trajectory_metrics_to_file(params, {"Full RO": tm_gt_fullmatches, settings.AUX0_NAME: tm_gt_aux0,
-    #                                          settings.AUX1_NAME: tm_gt_aux1}, segment_lengths)
 
     # Visualiser experimenting
     from pyslam.visualizers import TrajectoryVisualizer
@@ -117,8 +109,6 @@ def get_metrics(params):
     visualiser = TrajectoryVisualizer(
         {"Full matches": tm_gt_fullmatches, settings.AUX0_NAME: tm_gt_aux0, settings.AUX1_NAME: tm_gt_aux1,
          settings.AUX2_NAME: tm_gt_aux2})
-    # visualiser = TrajectoryVisualizer(
-    #     {"Full matches": tm_gt_fullmatches, settings.AUX0_NAME: tm_gt_aux0, settings.AUX1_NAME: tm_gt_aux1})
     visualiser.plot_cum_norm_err(figsize=(10, 3),
                                  outfile="%s%s" % (output_path_for_metrics, "/cumulative_norm_errors.pdf"))
     visualiser.plot_segment_errors(figsize=(10, 4), segs=segment_lengths, legend_fontsize=8,
