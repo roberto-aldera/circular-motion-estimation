@@ -293,7 +293,7 @@ def theta_plotting_for_visualisation(circular_motion_estimates, results_path):
     # ax.set_xlabel("Sample index", fontsize=font_size)
     ax.set_ylabel("Theta (rad)", fontsize=font_size)
     ax.set_ylim(-0.25, 0.25)
-    ax.legend(loc="upper left")
+    ax.legend(loc="upper left", fontsize=font_size)
     ax.grid()
 
     ax = axes[1]
@@ -303,7 +303,7 @@ def theta_plotting_for_visualisation(circular_motion_estimates, results_path):
     # ax.set_xlabel("Sample index", fontsize=font_size)
     ax.set_ylabel("Theta (rad)", fontsize=font_size)
     ax.set_ylim(-0.25, 0.25)
-    ax.legend(loc="upper left")
+    ax.legend(loc="upper left", fontsize=font_size)
     plt.xlabel("Sample index", fontsize=font_size)
     ax.grid()
     plt.tight_layout()
