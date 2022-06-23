@@ -56,7 +56,7 @@ def circular_motion_estimation(params, radar_state_mono, results_path):
     print("Running for", num_iterations, "samples")
 
     for i in tqdm(range(num_iterations)):
-        pb_state, name_scan, _ = radar_state_mono[i + 310]
+        pb_state, name_scan, _ = radar_state_mono[i + 0] # used index = 0, 310, 665 for figures 
         ro_state = get_ro_state_from_pb(pb_state)
         timestamps_from_ro_state.append(ro_state.timestamp)
 
@@ -87,7 +87,8 @@ def circular_motion_estimation(params, radar_state_mono, results_path):
         circular_motion_estimates = get_circular_motion_estimates_from_matches(matched_points)
 
         # Theta plotting for figure exports
-        theta_plotting_for_visualisation(circular_motion_estimates, results_path)
+        # theta_plotting_for_visualisation(circular_motion_estimates, results_path)
+        theta_plotting_for_thesis(circular_motion_estimates, results_path)
 
         # Get pose using all CME-selected points and the SVD
         pose_from_circular_motion_SVD = get_svd_pose_from_circular_motion_estimates(matched_points,
@@ -250,7 +251,7 @@ def theta_plotting_for_thesis(circular_motion_estimates, results_path):
     plt.xlabel("Sample index", fontsize=font_size)
     plt.ylabel("Theta (rad)", fontsize=font_size)
     plt.ylim(-0.25, 0.25)
-    plt.legend()
+    plt.legend(fontsize=font_size)
     plt.tight_layout()
     figure_path = "%s%s" % (results_path, "sorted_thetas.pdf")
     plt.savefig(figure_path)
